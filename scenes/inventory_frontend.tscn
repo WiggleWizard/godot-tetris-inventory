@@ -1,0 +1,27 @@
+[gd_scene load_steps=3 format=2]
+
+[ext_resource path="res://addons/tetris-inventory/scenes/inventory_frontend.gd" type="Script" id=1]
+[ext_resource path="res://addons/tetris-inventory/scripts/inventory_mouse_sink.gd" type="Script" id=2]
+
+[node name="InventoryFrontend" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource( 1 )
+
+[node name="Container" type="Control" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="MouseSink" type="Control" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource( 2 )
+
+[node name="MoveIndicator" type="ColorRect" parent="."]
+visible = false
+margin_right = 40.0
+margin_bottom = 40.0
+mouse_filter = 2
+
+[connection signal="mouse_exited" from="MouseSink" to="." method="_on_mouse_exited"]
