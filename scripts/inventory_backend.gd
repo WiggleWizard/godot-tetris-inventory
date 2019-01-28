@@ -2,7 +2,8 @@ extends Node
 
 class_name Inventory
 
-var _inventory_size = Vector2(5, 10);
+export(Vector2) var inventory_size = Vector2(1, 1) setget set_inventory_size, get_inventory_size;
+
 var _inventory      = [];
 
 # Holds data about the item that's being dragged from the inventory.
@@ -63,12 +64,12 @@ signal item_stack_size_change;
 
 
 func get_inventory_size():
-	return _inventory_size;
+	return inventory_size;
 
 # Resizes the inventory, be careful with this as this will truncate your
 # inventory if you make it smaller.
-func set_inventory_size(new_width, new_height):
-	_inventory_size = Vector2(new_width, new_height);
+func set_inventory_size(new_size):
+	inventory_size = new_size;
 	
 	# TODO: Truncate inventory
 	
@@ -128,9 +129,14 @@ func remove_item(inventory_item_id):
 # Returns the slot as Vector2, if either component is below 0 then
 # no appropriate slot was found for the item.
 func find_slot_for_item(item_id):
-	for y in range(_inventory_size.y):
-		for x in range(_inventory_size.x):
+	for y in range(inventory_size.y):
+		for x in range(inventory_size.x):
 			var slot = Vector2(x, y);
+			
+			# Slot already occupied with the beginning of an item
+			if(get_id_at_slot(slot) > -1):
+				continue;
+				
 			if(would_be_in_bounds(item_id, slot) && can_item_fit(item_id, slot)):
 				return slot;
 				
@@ -185,7 +191,7 @@ func would_be_in_bounds(item_id, slot):
 	var item           = ItemDatabase.get_item(item_id);
 	var item_sz        = item.get_size();
 	var item_rect      = Rect2(slot, item_sz);
-	var inventory_rect = Rect2(0, 0, _inventory_size.x + 1, _inventory_size.y + 1);
+	var inventory_rect = Rect2(0, 0, inventory_size.x + 1, inventory_size.y + 1);
 	
 	return inventory_rect.encloses(item_rect);
 	
