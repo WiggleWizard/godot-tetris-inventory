@@ -91,9 +91,9 @@ func set_inventory_size(new_size):
 # return true.
 func add_item_at(item_id, slot):
 	if(would_be_in_bounds(item_id, slot) && can_item_fit(item_id, slot)):
-		var id = _add_to_inventory_list(item_id, slot);
+		var inventory_item_id = _add_to_inventory_list(item_id, slot);
 		
-		emit_signal("item_added", id, slot);
+		emit_signal("item_added", _inventory[inventory_item_id]);
 		
 		return true;
 		
@@ -145,23 +145,18 @@ func remove_item(inventory_item_id):
 # Attempts to find a slot for the item.
 # Returns the slot as Vector2, if either component is below 0 then
 # no appropriate slot was found for the item.
-func find_slot_for_item(item_id):
+func find_slot_for_item(item_id, mask = []):
 	for y in range(inventory_size.y):
 		for x in range(inventory_size.x):
 			var slot = Vector2(x, y);
-			
-			# Slot already occupied with the beginning of an item
-			if(get_id_at_slot(slot) > -1):
-				continue;
-				
-			if(would_be_in_bounds(item_id, slot) && can_item_fit(item_id, slot)):
+			if(would_be_in_bounds(item_id, slot) && can_item_fit(item_id, slot, mask)):
 				return slot;
 				
 	return Vector2(-1, -1);
 	
 # Checks if an item can fit at a specific slot. Does not do boundary check.
-func can_item_fit(item_id, slot):
-	if(sweep(item_id, slot).size() == 0):
+func can_item_fit(item_id, slot, mask = []):
+	if(sweep(item_id, slot, mask).size() == 0):
 		return true;
 	return false;
 	
@@ -226,7 +221,7 @@ func get_all_inventory_items():
 	return _inventory;
 	
 # Returns an array of collided inventory item IDs if this item were to be put in `slot`.
-func sweep(item_id, slot):
+func sweep(item_id, slot, mask = []):
 	var collision_list = [];
 	
 	# Convenience variables
@@ -237,6 +232,10 @@ func sweep(item_id, slot):
 	# AABB testing against everything in inventory
 	for i in range(_inventory.size()):
 		if(_inventory[i] == null):
+			continue;
+			
+		# Ignore inventory IDs that are in the mask list
+		if(mask.find(i) > -1):
 			continue;
 			
 		if(_inventory[i].in_range()):
