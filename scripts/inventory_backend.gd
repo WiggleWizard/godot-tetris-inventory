@@ -4,12 +4,18 @@ class_name Inventory
 
 export(Vector2) var inventory_size = Vector2(1, 1) setget set_inventory_size, get_inventory_size;
 
-var _inventory      = [];
+var _inventory = [];
 
 # Holds data about the item that's being dragged from the inventory.
 var _dragging = null;
 
-# Special class to represent additional information about an item in the inventory.
+signal item_added;
+signal item_moved;
+signal item_removed;
+signal item_stack_size_change;
+
+
+# Special class to represent an inventory item
 class InventoryItem:
 	var _id         = -1;
 	var _slot       = Vector2(-1, -1);
@@ -38,6 +44,15 @@ class InventoryItem:
 	func get_item():
 		return ItemDatabase.get_item(_item_id);
 		
+	# Purely for convenience
+	func get_data():
+		return {
+			"id":         get_id(),
+			"slot":       get_slot(),
+			"stack_size": get_stack_size(),
+			"item_id":    get_item_id()
+		};
+		
 	func in_range():
 		if(_slot.x < 0 || _slot.y < 0):
 			return false;
@@ -57,11 +72,10 @@ class InventoryItem:
 	func _set_slot(new_slot):
 		_slot = new_slot;
 
-signal item_added;
-signal item_moved;
-signal item_removed;
-signal item_stack_size_change;
 
+#==========================================================================
+# Public
+#==========================================================================
 
 func get_inventory_size():
 	return inventory_size;
@@ -86,6 +100,7 @@ func add_item_at(item_id, slot):
 	return false;
 	
 # Appends an item to the inventory, attempting to find a spare slot for it.
+# `item_id` should be a valid item ID that's been registered to the global item database.
 func append_item(item_id):
 	var slot = find_slot_for_item(item_id);
 	if(slot.x > -1 && slot.y > -1):
@@ -97,6 +112,7 @@ func append_item(item_id):
 		
 	return false;
 	
+# Sets the inventory item stack size
 func set_item_stack_size(inventory_item_id, new_size):
 	if(!_inventory[inventory_item_id]):
 		return false;
@@ -105,6 +121,7 @@ func set_item_stack_size(inventory_item_id, new_size):
 	
 	emit_signal("item_stack_size_change", _inventory[inventory_item_id]);
 	
+# Moves inventory item from where it is currently to `slot`
 func move_item(inventory_item_id, to_slot):
 	if(can_inventory_item_fit(inventory_item_id, to_slot)):
 		_inventory[inventory_item_id]._set_slot(to_slot);
@@ -142,26 +159,6 @@ func find_slot_for_item(item_id):
 				
 	return Vector2(-1, -1);
 	
-# Returns an array of collided inventory item IDs if this item were to be put in `slot`.
-func sweep(item_id, slot):
-	var collision_list = [];
-	
-	# Convenience variables
-	var item           = ItemDatabase.get_item(item_id);
-	var item_sz        = item.get_size();
-	var item_rect      = Rect2(slot, item_sz);
-	
-	# AABB testing against everything in inventory
-	for i in range(_inventory.size()):
-		if(_inventory[i] == null):
-			continue;
-			
-		if(_inventory[i].in_range()):
-			if(_inventory[i].get_rect().intersects(item_rect)):
-				collision_list.append(i);
-		
-	return collision_list;
-	
 # Checks if an item can fit at a specific slot. Does not do boundary check.
 func can_item_fit(item_id, slot):
 	if(sweep(item_id, slot).size() == 0):
@@ -186,6 +183,11 @@ func can_inventory_item_fit(inventory_item_id, slot):
 		return true;
 	return false;
 			
+
+#==========================================================================
+# Private
+#==========================================================================	
+
 # Checks to see if the item would be within the bounds of the inventory space.
 func would_be_in_bounds(item_id, slot):
 	var item           = ItemDatabase.get_item(item_id);
@@ -223,6 +225,26 @@ func get_inventory_item(inventory_item_id):
 func get_all_inventory_items():
 	return _inventory;
 	
+# Returns an array of collided inventory item IDs if this item were to be put in `slot`.
+func sweep(item_id, slot):
+	var collision_list = [];
+	
+	# Convenience variables
+	var item           = ItemDatabase.get_item(item_id);
+	var item_sz        = item.get_size();
+	var item_rect      = Rect2(slot, item_sz);
+	
+	# AABB testing against everything in inventory
+	for i in range(_inventory.size()):
+		if(_inventory[i] == null):
+			continue;
+			
+		if(_inventory[i].in_range()):
+			if(_inventory[i].get_rect().intersects(item_rect)):
+				collision_list.append(i);
+		
+	return collision_list;
+	
 # Call this when the player begins a drag from the inventory.
 func begin_drag(slot):
 	var inventory_id = get_id_at_slot(slot);
@@ -244,7 +266,12 @@ func begin_drag(slot):
 func drop(dest):
 	if(dest != "inventory"):
 		return;
-	
+
+
+#==========================================================================
+# Private Internal
+#==========================================================================	
+
 # Adds the item ID to the inventory list and returns the inventory item ID.
 func _add_to_inventory_list(item_id, slot = Vector2(-1, -1)):
 	# Look for an empty slot to put this item
