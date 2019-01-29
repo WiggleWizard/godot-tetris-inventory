@@ -224,7 +224,7 @@ func get_all_inventory_items():
 	return _inventory;
 	
 # Call this when the player begins a drag from the inventory.
-func begin_drag(slot, node):
+func begin_drag(slot):
 	var inventory_id = get_id_at_slot(slot);
 	
 	# If it's a legit item
@@ -233,8 +233,8 @@ func begin_drag(slot, node):
 		return {
 			"source": "inventory",
 			"inventory_id": inventory_id,
+			"item_id": get_inventory_item(inventory_id).get_item_id(),
 			"slot": slot,
-			"node": node,
 			"mouse_down_slot_offset": mouse_down_slot_offset
 		};
 		
@@ -252,7 +252,6 @@ func _add_to_inventory_list(item_id, slot = Vector2(-1, -1)):
 		if(_inventory[i] == null):
 			_inventory[i] = InventoryItem.new(i, item_id);
 			_inventory[i]._set_slot(slot);
-			_inventory[i]._set_id(i);
 			
 			return i;
 			

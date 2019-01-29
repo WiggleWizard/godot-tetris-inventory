@@ -10,7 +10,7 @@ export(NodePath) var inventory_backend;
 export(Color) var valid_move_color = Color(0, 1, 0, 0.5);
 export(Color) var invalid_move_color = Color(1, 0, 0, 0.5);
 export(float) var drag_alpha = 0;
-export(PackedScene) var inventory_component_scene = load("res://addons/tetris-inventory/scenes/default_inventory_item.tscn");
+export(PackedScene) var inventory_component_scene = load("res://addons/tetris-inventory/scenes/default_display_item.tscn");
 
 var _inventory_backend = null;
 var _inventory_node_mapping = {};
@@ -90,7 +90,7 @@ func get_drag_data(position):
 			inner.set_position(mapped_node.get_position() - position);
 
 			# Populate the drag data
-			var base_drag_data = _inventory_backend.begin_drag(drag_start_slot, mapped_node);
+			var base_drag_data = _inventory_backend.begin_drag(drag_start_slot);
 			base_drag_data["source_node"] = self;
 			base_drag_data["mapped_node"] = mapped_node;
 			_drag_data = base_drag_data;
@@ -128,7 +128,6 @@ func can_drop_data(position, data):
 	return true;
 	
 func drop_data(position, data):
-	print("Dropped in inventory");
 	if(data["source"] == "inventory"):
 		# Ensure that it comes from the same inventory
 		if(data["source_node"] == self):
@@ -192,29 +191,25 @@ func _input(event):
 		if(event.button_index == BUTTON_LEFT && !event.is_pressed() && viewport.gui_is_dragging()):
 			# If the cursor is positioned outside the inventory space
 			if(_dragging_from_inventory && !get_rect().has_point(event.position)):
-				_process_drop_next_frame = true;
 				set_process_input(false);
 				
 				# Process the drop data on the next frame
+				_process_drop_next_frame = true;
 				set_process(true);
-				
-func _gui_input(event):
-	print(event);
-			
-func _on_drop():
-	print("DROP");
 
 func _on_mouse_exited():
 	_move_indicator.set_visible(false);
 	
-func _on_drop_zone_drop(remove_from_source):
+# Called when an item is dropped in a drop zone
+func _on_drop_zone_drop(remove_from_source, accepted, inventory_item_id):
 	_dropped_in_drop_zone = true;
 	
-	if(remove_from_source):
-		pass;
+	if(accepted && remove_from_source):
+		_inventory_backend.remove_item(inventory_item_id);
 	else:
 		_drag_data["mapped_node"].modulate.a = 1;
 	
+# Occurs when an item is dropped in no man's land.
 func _on_gutter_drop():
 	_move_indicator.set_visible(false);
 	_drag_data["mapped_node"].modulate.a = 1;
