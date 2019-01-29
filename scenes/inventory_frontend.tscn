@@ -1,7 +1,20 @@
 [gd_scene load_steps=3 format=2]
 
 [ext_resource path="res://addons/tetris-inventory/scenes/inventory_frontend.gd" type="Script" id=1]
-[ext_resource path="res://addons/tetris-inventory/scripts/inventory_mouse_sink.gd" type="Script" id=2]
+
+[sub_resource type="GDScript" id=1]
+
+script/source = "extends Control
+
+# Forward to parent
+func get_drag_data(position):
+	return get_parent().get_drag_data(position);
+	
+func can_drop_data(position, data):
+	return get_parent().can_drop_data(position, data);
+	
+func drop_data(position, data):
+	return get_parent().drop_data(position, data);"
 
 [node name="InventoryFrontend" type="Control"]
 anchor_right = 1.0
@@ -16,7 +29,7 @@ mouse_filter = 2
 [node name="MouseSink" type="Control" parent="."]
 anchor_right = 1.0
 anchor_bottom = 1.0
-script = ExtResource( 2 )
+script = SubResource( 1 )
 
 [node name="MoveIndicator" type="ColorRect" parent="."]
 visible = false

@@ -13,10 +13,12 @@ export(float) var drag_alpha = 0;
 export(PackedScene) var inventory_component_scene = load("res://addons/tetris-inventory/scenes/default_inventory_item.tscn");
 
 var _inventory_backend = null;
+var _inventory_node_mapping = {};
 
 onready var _move_indicator = get_node("MoveIndicator");
 onready var _container      = get_node("Container");
 
+var _drag_data = null;
 var _dragging_from_inventory = false;
 var _prev_drag_slot = Vector2(-1, -1);
 
@@ -62,34 +64,42 @@ func _draw():
 			
 		draw_rect(Rect2(0, 0, inventory_size.x * slot_size, inventory_size.y * slot_size), guide_color, false);
 			
+# Returns the actual node thats mapped to the inventory item ID
+func get_mapped_node(inventory_item_id):
+	return _inventory_node_mapping[inventory_item_id];
+
 # Called when the player starts dragging
 func get_drag_data(position):
 	_dragging_from_inventory = true;
 	set_process_input(true);
 	
 	# Figure out which slot the player started dragging
-	var slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
+	var drag_start_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
 	
-	var inventory_id = _inventory_backend.get_id_at_slot(slot);
+	var inventory_id = _inventory_backend.get_id_at_slot(drag_start_slot);
 	if(_inventory_backend.is_valid_id(inventory_id)):
-		# Go through all child nodes and find which one belongs to this item
-		for child in _container.get_children():
-			if(child.get_meta("inventory_id") == inventory_id):
-				child.modulate.a = drag_alpha;
-				var inventory_item = _inventory_backend.get_inventory_item(inventory_id);
-				var item = inventory_item.get_item();
-				var inventory_size = item.get_size();
-				
-				# Create an outer for the preview so we can have an offset.
-				var outer = Control.new();
-				var inner = inventory_component_scene.instance();
-				set_drag_preview(outer);
-				outer.add_child(inner);
-				
-				inner.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
-				#inner.set_position();
-				
-				return _inventory_backend.begin_drag(slot, child);
+		var mapped_node = get_mapped_node(inventory_id);
+		if(mapped_node):
+			mapped_node.modulate.a = drag_alpha;
+			var inventory_item = _inventory_backend.get_inventory_item(inventory_id);
+			var item = inventory_item.get_item();
+			var inventory_size = item.get_size();
+			
+			# Create an outer for the preview so we can have an offset.
+			var outer = Control.new();
+			var inner = inventory_component_scene.instance();
+			set_drag_preview(outer);
+			
+			outer.add_child(inner);
+			outer.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
+			inner.set_position(mapped_node.get_position() - position);
+
+			# Deal with the the drag will hold
+			var base_drag_data = _inventory_backend.begin_drag(drag_start_slot, mapped_node);
+			base_drag_data["inventory"] = self;
+			_drag_data = base_drag_data;
+			
+			return _drag_data;
 	
 	return null;
 	
@@ -100,31 +110,35 @@ func can_drop_data(position, data):
 		
 	# Since we don't need to run this code every time the mouse moves, we can do some
 	# simple calculation to figure out if the mouse has changed slots.
-	var slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
-	if(_prev_drag_slot != slot):
+	var mouse_curr_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
+	if(_prev_drag_slot != mouse_curr_slot):
 		var item = _inventory_backend.get_inventory_item(data["inventory_id"]).get_item();
 		var item_slot_size = item.get_size();
+		
+		var offset_slot = mouse_curr_slot - data["mouse_down_slot_offset"];
 
-		# Draw validation boxes
+		# Draw move indicator
 		_move_indicator.set_visible(true);
-		_move_indicator.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
+		_move_indicator.set_position(Vector2(offset_slot.x * slot_size, offset_slot.y * slot_size));
 		_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
 		
-		if(!_inventory_backend.can_inventory_item_fit(data["inventory_id"], slot)):
+		if(!_inventory_backend.can_inventory_item_fit(data["inventory_id"], offset_slot)):
 			_move_indicator.set_frame_color(invalid_move_color);
 		else:
 			_move_indicator.set_frame_color(valid_move_color);
 		
-	_prev_drag_slot = slot;
+	_prev_drag_slot = mouse_curr_slot;
 		
 	return true;
 	
 func drop_data(position, data):
 	print("Dropped in inventory");
 	if(data["source"] == "inventory"):
-		var new_slot = get_slot_from_position(position);
-		_inventory_backend.move_item(data["inventory_id"], new_slot);
-		_move_indicator.set_visible(false);
+		# Ensure that it comes from the same inventory
+		if(data["inventory"] == self):
+			var new_slot = get_slot_from_position(position) - data["mouse_down_slot_offset"];
+			_inventory_backend.move_item(data["inventory_id"], new_slot);
+			_move_indicator.set_visible(false);
 		
 func drop(position, data):
 	# If dropped outside the inventory bounds
@@ -132,6 +146,9 @@ func drop(position, data):
 		print("Dropped inside");
 	else:
 		print("Dropped outside");
+		
+		_move_indicator.set_visible(false);
+		_inventory_backend.move_item(_drag_data["inventory_id"], _drag_data["slot"]);
 	
 func get_slot_from_position(position):
 	return Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
@@ -139,43 +156,55 @@ func get_slot_from_position(position):
 func item_added(inventory_item):
 	var item = inventory_item.get_item();
 	var slot = inventory_item.get_slot();
+	var inventory_id = inventory_item.get_id();
 	
 	if(item):
 		var inventory_size = item.get_size();
-		print(item.fetch_inventory_display_data());
 		
 		var display_data = item.fetch_inventory_display_data();
 		var new_scene = inventory_component_scene.instance();
 		new_scene.set_display_data(display_data["texture"], display_data["clip_offset"], display_data["clip_size"]);
 		
+		# Map the scene to the inventory ID
+		_inventory_node_mapping[inventory_id] = new_scene;
+		
+		# Append the scene to the tree
 		_container.add_child(new_scene);
 		new_scene.mouse_filter = MOUSE_FILTER_IGNORE;
 		new_scene.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
 		new_scene.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
-		new_scene.set_meta("inventory_id", inventory_item.get_id());
+		new_scene.set_meta("inventory_id", inventory_id);
 
 func item_moved(inventory_item):
 	var inventory_item_id = inventory_item.get_id();
 	var slot = inventory_item.get_slot();
+	var inventory_item_scene = _inventory_node_mapping[inventory_item_id];
 	
-	for child in _container.get_children():
-		if(child.get_meta("inventory_id") == inventory_item_id):
-			child.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
-			child.modulate.a = 1;
-			
-			return;
+	if(inventory_item_scene):
+		inventory_item_scene.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
+		inventory_item_scene.modulate.a = 1;
+		
+		return;
 
-func item_stack_size_change(item):
-	print(item);
+func item_stack_size_change(inventory_item):
+	print("Stack size changed");
 	
-func item_removed(item):
-	print(item);
+func item_removed(inventory_item):
+	var inventory_id = inventory_item.get_id();
+	
+	# Remove the inventory item node from the scene
+	var mapped_node = get_mapped_node(inventory_id);
+	if(mapped_node):
+		mapped_node.queue_free();
+		
+	# Unmap the inventory item scene
+	_inventory_node_mapping.erase(inventory_id);
 	
 func on_mouse_enter():
 	pass;
 	
 func on_mouse_exit():
-	print("Exit");
+	_move_indicator.set_visible(false);
 	
 func _input(event):
 	if(event is InputEventMouse):
