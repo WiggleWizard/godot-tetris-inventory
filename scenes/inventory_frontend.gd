@@ -20,11 +20,14 @@ onready var _container      = get_node("Container");
 
 var _drag_data = null;
 var _dragging_from_inventory = false;
+var _dropped_in_drop_zone = false;
+var _process_drop_next_frame = false;
 var _prev_drag_slot = Vector2(-1, -1);
 
 
 func _ready():
 	set_process_input(false);
+	set_process(false);
 	
 	connect("mouse_entered", self, "on_mouse_enter");
 	connect("mouse_exited", self, "on_mouse_exit");
@@ -42,28 +45,19 @@ func _ready():
 		_inventory_backend.connect("item_moved", self, "item_moved");
 		_inventory_backend.connect("item_removed", self, "item_removed");
 		
-func _draw():
-	# Draw inventory grid lines for debug
-	if(enable_guides && _inventory_backend):
-		var inventory_size = _inventory_backend.get_inventory_size();
-		for i in range(inventory_size.x):
-			if(i == 0):
-				continue;
-				
-			var start = Vector2(i * slot_size, 0);
-			var end   = Vector2(i * slot_size, inventory_size.y * slot_size);
-			draw_line(start, end, guide_color);
+func _process(delta):
+	if(_process_drop_next_frame):
+		if(!_dropped_in_drop_zone):
+			_on_gutter_drop();
 			
-		for i in range(inventory_size.y):
-			if(i == 0):
-				continue;
-				
-			var start = Vector2(0, i * slot_size);
-			var end   = Vector2(inventory_size.x * slot_size, i * slot_size);
-			draw_line(start, end, guide_color);
-			
-		draw_rect(Rect2(0, 0, inventory_size.x * slot_size, inventory_size.y * slot_size), guide_color, false);
-			
+		# Reset drop related variables
+		_process_drop_next_frame = false;
+		_dragging_from_inventory = false;
+		_dropped_in_drop_zone    = false;
+		_drag_data = null;
+		
+		set_process(false);
+		
 # Returns the actual node thats mapped to the inventory item ID
 func get_mapped_node(inventory_item_id):
 	return _inventory_node_mapping[inventory_item_id];
@@ -81,8 +75,9 @@ func get_drag_data(position):
 		var mapped_node = get_mapped_node(inventory_id);
 		if(mapped_node):
 			mapped_node.modulate.a = drag_alpha;
+			
 			var inventory_item = _inventory_backend.get_inventory_item(inventory_id);
-			var item = inventory_item.get_item();
+			var item           = inventory_item.get_item();
 			var inventory_size = item.get_size();
 			
 			# Create an outer for the preview so we can have an offset.
@@ -94,9 +89,10 @@ func get_drag_data(position):
 			outer.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
 			inner.set_position(mapped_node.get_position() - position);
 
-			# Deal with the the drag will hold
+			# Populate the drag data
 			var base_drag_data = _inventory_backend.begin_drag(drag_start_slot, mapped_node);
-			base_drag_data["inventory"] = self;
+			base_drag_data["source_node"] = self;
+			base_drag_data["mapped_node"] = mapped_node;
 			_drag_data = base_drag_data;
 			
 			return _drag_data;
@@ -135,20 +131,10 @@ func drop_data(position, data):
 	print("Dropped in inventory");
 	if(data["source"] == "inventory"):
 		# Ensure that it comes from the same inventory
-		if(data["inventory"] == self):
+		if(data["source_node"] == self):
 			var new_slot = get_slot_from_position(position) - data["mouse_down_slot_offset"];
 			_inventory_backend.move_item(data["inventory_id"], new_slot);
 			_move_indicator.set_visible(false);
-		
-func drop(position, data):
-	# If dropped outside the inventory bounds
-	if(get_rect().has_point(position)):
-		print("Dropped inside");
-	else:
-		print("Dropped outside");
-		
-		_move_indicator.set_visible(false);
-		_inventory_backend.move_item(_drag_data["inventory_id"], _drag_data["slot"]);
 	
 func get_slot_from_position(position):
 	return Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
@@ -176,15 +162,13 @@ func item_added(inventory_item):
 		new_scene.set_meta("inventory_id", inventory_id);
 
 func item_moved(inventory_item):
-	var inventory_item_id = inventory_item.get_id();
-	var slot = inventory_item.get_slot();
-	var inventory_item_scene = _inventory_node_mapping[inventory_item_id];
+	var slot                = inventory_item.get_slot();
+	var inventory_item_id   = inventory_item.get_id();
+	var inventory_item_node = get_mapped_node(inventory_item_id);
 	
-	if(inventory_item_scene):
-		inventory_item_scene.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
-		inventory_item_scene.modulate.a = 1;
-		
-		return;
+	if(inventory_item_node):
+		inventory_item_node.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
+		inventory_item_node.modulate.a = 1;
 
 func item_stack_size_change(inventory_item):
 	print("Stack size changed");
@@ -200,22 +184,59 @@ func item_removed(inventory_item):
 	# Unmap the inventory item scene
 	_inventory_node_mapping.erase(inventory_id);
 	
-func on_mouse_enter():
-	pass;
-	
-func on_mouse_exit():
-	_move_indicator.set_visible(false);
-	
 func _input(event):
-	if(event is InputEventMouse):
+	if(event is InputEventMouseButton):
 		var viewport = get_viewport();
-		
-		# Listen out for mouse events that occur so we can determine when the player
-		# has dropped outside the inventory.
-		if(_dragging_from_inventory && !viewport.gui_is_dragging()):
-			set_process_input(false);
-			_dragging_from_inventory = false;
-			drop(event.position, {});
+	
+		# Mouse events occur first before drag events
+		if(event.button_index == BUTTON_LEFT && !event.is_pressed() && viewport.gui_is_dragging()):
+			# If the cursor is positioned outside the inventory space
+			if(_dragging_from_inventory && !get_rect().has_point(event.position)):
+				_process_drop_next_frame = true;
+				set_process_input(false);
+				
+				# Process the drop data on the next frame
+				set_process(true);
+				
+func _gui_input(event):
+	print(event);
+			
+func _on_drop():
+	print("DROP");
 
 func _on_mouse_exited():
-	on_mouse_exit();
+	_move_indicator.set_visible(false);
+	
+func _on_drop_zone_drop(remove_from_source):
+	_dropped_in_drop_zone = true;
+	
+	if(remove_from_source):
+		pass;
+	else:
+		_drag_data["mapped_node"].modulate.a = 1;
+	
+func _on_gutter_drop():
+	_move_indicator.set_visible(false);
+	_drag_data["mapped_node"].modulate.a = 1;
+	
+func _draw():
+	# Draw inventory grid lines for debug
+	if(enable_guides && _inventory_backend):
+		var inventory_size = _inventory_backend.get_inventory_size();
+		for i in range(inventory_size.x):
+			if(i == 0):
+				continue;
+				
+			var start = Vector2(i * slot_size, 0);
+			var end   = Vector2(i * slot_size, inventory_size.y * slot_size);
+			draw_line(start, end, guide_color);
+			
+		for i in range(inventory_size.y):
+			if(i == 0):
+				continue;
+				
+			var start = Vector2(0, i * slot_size);
+			var end   = Vector2(inventory_size.x * slot_size, i * slot_size);
+			draw_line(start, end, guide_color);
+			
+		draw_rect(Rect2(0, 0, inventory_size.x * slot_size, inventory_size.y * slot_size), guide_color, false);
