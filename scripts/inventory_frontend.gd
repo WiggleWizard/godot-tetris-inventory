@@ -25,6 +25,73 @@ var _process_drop_next_frame = false;
 var _prev_drag_slot = Vector2(-1, -1);
 
 
+#==========================================================================
+# Public
+#==========================================================================	
+		
+# Returns the actual node thats mapped to the inventory item ID
+func get_mapped_node(inventory_item_id):
+	return _inventory_node_mapping[inventory_item_id];
+	
+func get_slot_from_position(position):
+	return Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
+
+
+#==========================================================================
+# Inventory Backend Events
+#==========================================================================	
+
+func item_added(inventory_item):
+	print("ITEM ADDED");
+	var item = inventory_item.get_item();
+	var slot = inventory_item.get_slot();
+	var inventory_id = inventory_item.get_id();
+	
+	if(item):
+		var inventory_size = item.get_size();
+		
+		var display_data = item.fetch_inventory_display_data();
+		var new_scene = inventory_component_scene.instance();
+		new_scene.set_display_data(display_data["texture"], display_data["clip_offset"], display_data["clip_size"]);
+		
+		# Map the scene to the inventory ID
+		_inventory_node_mapping[inventory_id] = new_scene;
+		
+		# Append the scene to the tree
+		_container.add_child(new_scene);
+		new_scene.mouse_filter = MOUSE_FILTER_IGNORE;
+		new_scene.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
+		new_scene.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
+		new_scene.set_meta("inventory_id", inventory_id);
+
+func item_moved(inventory_item):
+	var slot                = inventory_item.get_slot();
+	var inventory_item_id   = inventory_item.get_id();
+	var inventory_item_node = get_mapped_node(inventory_item_id);
+	
+	if(inventory_item_node):
+		inventory_item_node.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
+		inventory_item_node.modulate.a = 1;
+
+func item_stack_size_change(inventory_item):
+	print("Stack size changed");
+	
+func item_removed(inventory_item):
+	var inventory_id = inventory_item.get_id();
+	
+	# Remove the inventory item node from the scene
+	var mapped_node = get_mapped_node(inventory_id);
+	if(mapped_node):
+		mapped_node.queue_free();
+		
+	# Unmap the inventory item scene
+	_inventory_node_mapping.erase(inventory_id);
+	
+	
+#==========================================================================
+# Events
+#==========================================================================	
+	
 func _ready():
 	set_process_input(false);
 	set_process(false);
@@ -57,11 +124,51 @@ func _process(delta):
 		_drag_data = null;
 		
 		set_process(false);
-		
-# Returns the actual node thats mapped to the inventory item ID
-func get_mapped_node(inventory_item_id):
-	return _inventory_node_mapping[inventory_item_id];
+	
+func _input(event):
+	if(event is InputEventMouseButton):
+		var viewport = get_viewport();
+	
+		# Mouse events occur first before drag events
+		if(event.button_index == BUTTON_LEFT && !event.is_pressed() && viewport.gui_is_dragging()):
+			# If the cursor is positioned outside the inventory space
+			if(_dragging_from_inventory && !get_rect().has_point(event.position)):
+				set_process_input(false);
+				
+				# Process the drop data on the next frame
+				_process_drop_next_frame = true;
+				set_process(true);
 
+func _on_mouse_exited():
+	_move_indicator.set_visible(false);
+	
+func _draw():
+	# Draw inventory grid lines for debug
+	if(enable_guides && _inventory_backend):
+		var inventory_size = _inventory_backend.get_inventory_size();
+		for i in range(inventory_size.x):
+			if(i == 0):
+				continue;
+				
+			var start = Vector2(i * slot_size, 0);
+			var end   = Vector2(i * slot_size, inventory_size.y * slot_size);
+			draw_line(start, end, guide_color);
+			
+		for i in range(inventory_size.y):
+			if(i == 0):
+				continue;
+				
+			var start = Vector2(0, i * slot_size);
+			var end   = Vector2(inventory_size.x * slot_size, i * slot_size);
+			draw_line(start, end, guide_color);
+			
+		draw_rect(Rect2(0, 0, inventory_size.x * slot_size, inventory_size.y * slot_size), guide_color, false);
+	
+
+#==========================================================================
+# Drag Drop
+#==========================================================================	
+	
 # Called when the player starts dragging
 func get_drag_data(position):
 	_dragging_from_inventory = true;
@@ -135,72 +242,6 @@ func drop_data(position, data):
 			_inventory_backend.move_item(data["inventory_id"], new_slot);
 			_move_indicator.set_visible(false);
 	
-func get_slot_from_position(position):
-	return Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
-	
-func item_added(inventory_item):
-	print("ITEM ADDED");
-	var item = inventory_item.get_item();
-	var slot = inventory_item.get_slot();
-	var inventory_id = inventory_item.get_id();
-	
-	if(item):
-		var inventory_size = item.get_size();
-		
-		var display_data = item.fetch_inventory_display_data();
-		var new_scene = inventory_component_scene.instance();
-		new_scene.set_display_data(display_data["texture"], display_data["clip_offset"], display_data["clip_size"]);
-		
-		# Map the scene to the inventory ID
-		_inventory_node_mapping[inventory_id] = new_scene;
-		
-		# Append the scene to the tree
-		_container.add_child(new_scene);
-		new_scene.mouse_filter = MOUSE_FILTER_IGNORE;
-		new_scene.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
-		new_scene.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
-		new_scene.set_meta("inventory_id", inventory_id);
-
-func item_moved(inventory_item):
-	var slot                = inventory_item.get_slot();
-	var inventory_item_id   = inventory_item.get_id();
-	var inventory_item_node = get_mapped_node(inventory_item_id);
-	
-	if(inventory_item_node):
-		inventory_item_node.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
-		inventory_item_node.modulate.a = 1;
-
-func item_stack_size_change(inventory_item):
-	print("Stack size changed");
-	
-func item_removed(inventory_item):
-	var inventory_id = inventory_item.get_id();
-	
-	# Remove the inventory item node from the scene
-	var mapped_node = get_mapped_node(inventory_id);
-	if(mapped_node):
-		mapped_node.queue_free();
-		
-	# Unmap the inventory item scene
-	_inventory_node_mapping.erase(inventory_id);
-	
-func _input(event):
-	if(event is InputEventMouseButton):
-		var viewport = get_viewport();
-	
-		# Mouse events occur first before drag events
-		if(event.button_index == BUTTON_LEFT && !event.is_pressed() && viewport.gui_is_dragging()):
-			# If the cursor is positioned outside the inventory space
-			if(_dragging_from_inventory && !get_rect().has_point(event.position)):
-				set_process_input(false);
-				
-				# Process the drop data on the next frame
-				_process_drop_next_frame = true;
-				set_process(true);
-
-func _on_mouse_exited():
-	_move_indicator.set_visible(false);
-	
 # Called when an item is dropped in a drop zone. Return true to accept the drop
 # Return false to deny it.
 func _drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, dest):
@@ -240,25 +281,3 @@ func _drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, de
 func _on_gutter_drop():
 	_move_indicator.set_visible(false);
 	_drag_data["mapped_node"].modulate.a = 1;
-	
-func _draw():
-	# Draw inventory grid lines for debug
-	if(enable_guides && _inventory_backend):
-		var inventory_size = _inventory_backend.get_inventory_size();
-		for i in range(inventory_size.x):
-			if(i == 0):
-				continue;
-				
-			var start = Vector2(i * slot_size, 0);
-			var end   = Vector2(i * slot_size, inventory_size.y * slot_size);
-			draw_line(start, end, guide_color);
-			
-		for i in range(inventory_size.y):
-			if(i == 0):
-				continue;
-				
-			var start = Vector2(0, i * slot_size);
-			var end   = Vector2(inventory_size.x * slot_size, i * slot_size);
-			draw_line(start, end, guide_color);
-			
-		draw_rect(Rect2(0, 0, inventory_size.x * slot_size, inventory_size.y * slot_size), guide_color, false);
