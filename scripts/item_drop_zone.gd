@@ -3,6 +3,7 @@ extends Control
 class_name ItemDropZone
 
 export(bool) var remove_from_source = false;
+export(bool) var allow_drop_swapping = true;
 export(Array, String) var inclusive_filter = [];
 
 var _item_id    = -1;
@@ -12,6 +13,11 @@ var _stack_size = 1;
 # however.
 var _mouse_event_sink_node = null;
 
+
+# Callback for when drag hovering over the drop zone. Allow is true only if
+# the zone will accept the hovering item.
+func drag_hover(allow, data):
+	pass;
 	
 # Callback for when an item has been dropped from an inventory.
 func dropped_item_from_inventory(item_id, stack_size = 1):
@@ -36,6 +42,10 @@ func get_drag_data_fw(position, from_control):
 	return null;
 
 func can_drop_data_fw(position, data, from_control):
+	if(data.has("item_id")):
+		var item_id = data["item_id"];
+		drag_hover(_is_item_allowed(data["item_id"]), data);
+	
 	return true;
 	
 func drop_data_fw(position, data, from_control):
@@ -61,6 +71,9 @@ func drop_data_fw(position, data, from_control):
 # Checks whether this item ID is allowed in this drop zone. Check is done by
 # item type.
 func _is_item_allowed(item_id):
+	if(!allow_drop_swapping && get_curr_item_id() > -1):
+		return false;
+	
 	var is_allowed = false;
 	if(inclusive_filter.size() > 0):
 		var item = ItemDatabase.get_item(item_id);

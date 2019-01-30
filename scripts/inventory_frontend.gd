@@ -15,8 +15,9 @@ export(PackedScene) var inventory_component_scene = load("res://addons/tetris-in
 var _inventory_backend = null;
 var _inventory_node_mapping = {};
 
-onready var _move_indicator = get_node("MoveIndicator");
-onready var _container      = get_node("Container");
+var _move_indicator  = null;
+var _mouse_sink_node = null;
+var _container       = null;
 
 var _drag_data = null;
 var _dragging_from_inventory = false;
@@ -94,6 +95,24 @@ func item_removed(inventory_item):
 func _ready():
 	set_process_input(false);
 	set_process(false);
+	
+	_container       = Container.new();
+	_mouse_sink_node = Container.new();
+	_move_indicator  = ColorRect.new();
+	
+	# Append necessary nodes, special attention to order
+	add_child(_container);
+	add_child(_mouse_sink_node);
+	add_child(_move_indicator);
+	
+	# Presetup
+	_container.set_anchors_and_margins_preset(PRESET_WIDE);
+	_container.set_mouse_filter(MOUSE_FILTER_IGNORE);
+	_mouse_sink_node.set_anchors_and_margins_preset(PRESET_WIDE);
+	_mouse_sink_node.set_drag_forwarding(self);
+	_mouse_sink_node.set_mouse_filter(MOUSE_FILTER_STOP);
+	_move_indicator.set_visible(false);
+	_move_indicator.set_mouse_filter(MOUSE_FILTER_IGNORE);
 	
 	connect("mouse_entered", self, "on_mouse_enter");
 	connect("mouse_exited", self, "on_mouse_exit");
@@ -278,3 +297,12 @@ func drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, des
 func gutter_drop():
 	_move_indicator.set_visible(false);
 	_drag_data["mapped_node"].modulate.a = 1;
+	
+func get_drag_data_fw(position, from_control):
+	return get_drag_data(position);
+
+func can_drop_data_fw(position, data, from_control):
+	return can_drop_data(position, data);
+	
+func drop_data_fw(position, data, from_control):
+	return drop_data(position, data);
