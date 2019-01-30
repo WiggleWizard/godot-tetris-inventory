@@ -12,6 +12,18 @@ var _stack_size = 1;
 # however.
 var _mouse_event_sink_node = null;
 
+	
+# Callback for when an item has been dropped from an inventory.
+func dropped_item_from_inventory(item_id, stack_size = 1):
+	pass;
+	
+func get_curr_item_id():
+	return _item_id;
+	
+
+#==========================================================================
+# Private Internal
+#==========================================================================
 
 func _ready():
 	_mouse_event_sink_node = Control.new();
@@ -19,10 +31,6 @@ func _ready():
 	
 	_mouse_event_sink_node.set_drag_forwarding(self);
 	_mouse_event_sink_node.set_anchors_and_margins_preset(Control.PRESET_WIDE);
-	
-# Callback for when an item has been dropped from an inventory.
-func dropped_item_from_inventory(item_id, stack_size = 1):
-	pass;
 	
 func get_drag_data_fw(position, from_control):
 	print(_item_id);
@@ -39,9 +47,12 @@ func drop_data_fw(position, data, from_control):
 		
 		# If from inventory
 		if(source_node && data["source"] == "inventory"):
-			source_node._on_drop_zone_drop(remove_from_source, allowed, data["inventory_id"]);
+			# Inform the inventory that we have dropped here
+			var proceed_with_drop = source_node._drop_zone_drop(remove_from_source, allowed, data["inventory_id"], self);
 			
-			if(allowed):
+			if(allowed && proceed_with_drop):
+				# Deal with adding the item in to the drop zone memory
+				_item_id = data["item_id"];
 				dropped_item_from_inventory(data["item_id"]);
 			
 		# Otherwise just notify the source

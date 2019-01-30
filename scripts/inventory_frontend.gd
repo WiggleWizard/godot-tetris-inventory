@@ -6,7 +6,7 @@ class_name InventoryFrontend
 export(bool) var enable_guides = false;
 export(Color) var guide_color = Color(1, 1, 1, 0.1);
 export(int) var slot_size = 30;
-export(NodePath) var inventory_backend;
+export(NodePath) var inventory_backend = NodePath("./Inventory");
 export(Color) var valid_move_color = Color(0, 1, 0, 0.5);
 export(Color) var invalid_move_color = Color(1, 0, 0, 0.5);
 export(float) var drag_alpha = 0;
@@ -139,6 +139,7 @@ func get_slot_from_position(position):
 	return Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
 	
 func item_added(inventory_item):
+	print("ITEM ADDED");
 	var item = inventory_item.get_item();
 	var slot = inventory_item.get_slot();
 	var inventory_id = inventory_item.get_id();
@@ -200,14 +201,40 @@ func _input(event):
 func _on_mouse_exited():
 	_move_indicator.set_visible(false);
 	
-# Called when an item is dropped in a drop zone
-func _on_drop_zone_drop(remove_from_source, accepted, inventory_item_id):
+# Called when an item is dropped in a drop zone. Return true to accept the drop
+# Return false to deny it.
+func _drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, dest):
 	_dropped_in_drop_zone = true;
 	
-	if(accepted && remove_from_source):
-		_inventory_backend.remove_item(inventory_item_id);
+	if(remove_from_source && accepted):
+		var curr_item_id = dest.get_curr_item_id();
+		if(curr_item_id != -1):
+			# If the drop zone already has something in it, then we need to swap it out.
+			# So first we attempt to find space in the inventory for the item (while ignoring
+			# the item that was dropped as it's still in the inventory). If there's
+			# no available slot then we refuse the drop.
+			var fittable_slot = _inventory_backend.find_slot_for_item(curr_item_id, [dropped_inventory_item_id]);
+			print(fittable_slot);
+			print(dropped_inventory_item_id);
+			if(fittable_slot.x > -1 && fittable_slot.y > -1):
+				# Remove dropped item
+				_inventory_backend.remove_item(dropped_inventory_item_id);
+				
+				# Add item that was in the drop zone
+				_inventory_backend.add_item_at(curr_item_id, fittable_slot);
+				
+				return true;
+			else:
+				_drag_data["mapped_node"].modulate.a = 1;
+				return false;
+		else:
+			_inventory_backend.remove_item(dropped_inventory_item_id);
+			return true;
+		
+		return false;
 	else:
 		_drag_data["mapped_node"].modulate.a = 1;
+		return false;
 	
 # Occurs when an item is dropped in no man's land.
 func _on_gutter_drop():
