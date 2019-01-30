@@ -33,7 +33,6 @@ func _ready():
 	_mouse_event_sink_node.set_anchors_and_margins_preset(Control.PRESET_WIDE);
 	
 func get_drag_data_fw(position, from_control):
-	print(_item_id);
 	return null;
 
 func can_drop_data_fw(position, data, from_control):

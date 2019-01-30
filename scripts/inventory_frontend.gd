@@ -42,7 +42,6 @@ func get_slot_from_position(position):
 #==========================================================================	
 
 func item_added(inventory_item):
-	print("ITEM ADDED");
 	var item = inventory_item.get_item();
 	var slot = inventory_item.get_slot();
 	var inventory_id = inventory_item.get_id();
@@ -255,8 +254,6 @@ func drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, des
 			# the item that was dropped as it's still in the inventory). If there's
 			# no available slot then we refuse the drop.
 			var fittable_slot = _inventory_backend.find_slot_for_item(curr_item_id, [dropped_inventory_item_id]);
-			print(fittable_slot);
-			print(dropped_inventory_item_id);
 			if(fittable_slot.x > -1 && fittable_slot.y > -1):
 				# Remove dropped item
 				_inventory_backend.remove_item(dropped_inventory_item_id);

@@ -16,6 +16,9 @@ var _clip_size   = Vector2(0, 0);
 func get_id():
 	return _id;
 	
+func get_name():
+	return _name;
+	
 func get_type():
 	return _type;
 	
