@@ -48,7 +48,7 @@ func drop_data_fw(position, data, from_control):
 		# If from inventory
 		if(source_node && data["source"] == "inventory"):
 			# Inform the inventory that we have dropped here
-			var proceed_with_drop = source_node._drop_zone_drop(remove_from_source, allowed, data["inventory_id"], self);
+			var proceed_with_drop = source_node.drop_zone_drop(remove_from_source, allowed, data["inventory_id"], self);
 			
 			if(allowed && proceed_with_drop):
 				# Deal with adding the item in to the drop zone memory

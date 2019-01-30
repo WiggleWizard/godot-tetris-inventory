@@ -115,13 +115,13 @@ func _ready():
 func _process(delta):
 	if(_process_drop_next_frame):
 		if(!_dropped_in_drop_zone):
-			_on_gutter_drop();
+			gutter_drop();
 			
 		# Reset drop related variables
 		_process_drop_next_frame = false;
 		_dragging_from_inventory = false;
 		_dropped_in_drop_zone    = false;
-		_drag_data = null;
+		_drag_data               = null;
 		
 		set_process(false);
 	
@@ -244,7 +244,7 @@ func drop_data(position, data):
 	
 # Called when an item is dropped in a drop zone. Return true to accept the drop
 # Return false to deny it.
-func _drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, dest):
+func drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, dest):
 	_dropped_in_drop_zone = true;
 	
 	if(remove_from_source && accepted):
@@ -278,6 +278,6 @@ func _drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, de
 		return false;
 	
 # Occurs when an item is dropped in no man's land.
-func _on_gutter_drop():
+func gutter_drop():
 	_move_indicator.set_visible(false);
 	_drag_data["mapped_node"].modulate.a = 1;
