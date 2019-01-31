@@ -225,45 +225,66 @@ func get_drag_data(position):
 	
 # Called while user is dragging the Node over the inventory
 func can_drop_data(position, data):
-	if(!data):
-		return false;
+	_is_drop_data_valid(data);
 		
-	# Since we don't need to run this code every time the mouse moves, we can do some
-	# simple calculation to figure out if the mouse has changed slots.
+	var source_node = data["source_node"];
 	var mouse_curr_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
-	if(_prev_drag_slot != mouse_curr_slot):
-		var item           = ItemDatabase.get_item(data["item_id"]);
-		var item_slot_size = item.get_size();
-		var offset_slot    = mouse_curr_slot - data["mouse_down_slot_offset"];
-
-		# Draw move indicator in the right place
-		_move_indicator.set_visible(true);
-		_move_indicator.set_position(Vector2(offset_slot.x * slot_size, offset_slot.y * slot_size));
-		_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
 		
-		var can_item_fit = false;
-		# Inventory item being dragged around the same inventory it originated from
-		if(data.has("source_node") && data["source_node"] == self):
-			can_item_fit = _inventory_backend.can_inventory_item_fit(data["inventory_id"], offset_slot);
-		# Different inventory origin
-		elif(data.has("source") && data["source"] == "inventory"):
-			can_item_fit = _inventory_backend.can_item_fit(data["item_id"], offset_slot);
+	if(data["source"] == "inventory"):
+		# Since we don't need to run this code every time the mouse moves, we can do some
+		# simple calculation to figure out if the mouse has changed slots.
+		if(_prev_drag_slot != mouse_curr_slot):
+			var item           = ItemDatabase.get_item(data["item_id"]);
+			var item_slot_size = item.get_size();
+			var offset_slot    = mouse_curr_slot - data["mouse_down_slot_offset"];
+	
+			# Draw move indicator in the right place
+			_move_indicator.set_visible(true);
+			_move_indicator.set_position(Vector2(offset_slot.x * slot_size, offset_slot.y * slot_size));
+			_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
 			
-		# Set move indicator to different colors depending on whether item can fit
-		# or not.
-		# TODO: Make this more customizable.
-		if(can_item_fit == true):
-			_move_indicator.set_frame_color(valid_move_color);
-		else:
-			_move_indicator.set_frame_color(invalid_move_color);
-		
+			var can_item_fit = false;
+			# Inventory item being dragged around the same inventory it originated from
+			if(source_node == self):
+				can_item_fit = _inventory_backend.can_inventory_item_fit(data["inventory_id"], offset_slot);
+			# Different inventory origin
+			elif(data.has("source") && data["source"] == "inventory"):
+				can_item_fit = _inventory_backend.can_item_fit(data["item_id"], offset_slot);
+				
+			# Set move indicator to different colors depending on whether item can fit
+			# or not.
+			# TODO: Make this more customizable.
+			if(can_item_fit == true):
+				_move_indicator.set_frame_color(valid_move_color);
+			else:
+				_move_indicator.set_frame_color(invalid_move_color);
+			
+	if(data["source"] == "drop_zone"):
+		if(_prev_drag_slot != mouse_curr_slot):
+			var item           = ItemDatabase.get_item(data["item_id"]);
+			var item_slot_size = item.get_size();
+			
+			# Draw move indicator in the right place
+			_move_indicator.set_visible(true);
+			_move_indicator.set_position(Vector2(mouse_curr_slot.x * slot_size, mouse_curr_slot.y * slot_size));
+			_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
+			
+			var can_item_fit = _inventory_backend.can_item_fit(data["item_id"], mouse_curr_slot);
+			if(can_item_fit == true):
+				_move_indicator.set_frame_color(valid_move_color);
+			else:
+				_move_indicator.set_frame_color(invalid_move_color);
+	
 	_prev_drag_slot = mouse_curr_slot;
-		
+			
 	return true;
 	
 func drop_data(position, data):
-	if(data["source"] == "inventory" && data.has("source_node")):
-		var source_node = data["source_node"];
+	_is_drop_data_valid(data);
+		
+	var source_node = data["source_node"];
+		
+	if(data["source"] == "inventory"):
 		var new_slot = get_slot_from_position(position) - data["mouse_down_slot_offset"];
 		
 		# Same inventory as source
@@ -284,6 +305,18 @@ func drop_data(position, data):
 		
 		_move_indicator.set_visible(false);
 		
+	elif(data["source"] == "drop_zone"):
+		print(data["item_id"]);
+	
+	# Curtesy call source node
+	if(source_node.has_method("drop_fw")):
+		source_node.drop_fw(self);
+	
+# Curtesy call from controls that have had the item from this Node dropped into.	
+func drop_fw(from_control):
+	print(from_control);
+		
+# Callback for when a drop is "acknowledged" from a third party node
 func validate_drop(valid = true):
 	if(valid):
 		_dropped_in_drop_zone = true;
@@ -337,3 +370,16 @@ func can_drop_data_fw(position, data, from_control):
 	
 func drop_data_fw(position, data, from_control):
 	return drop_data(position, data);
+	
+	
+#==========================================================================
+# Internal
+#==========================================================================
+
+func _is_drop_data_valid(data):
+	if(!data && (!data.has("source") || !data.has("source_node"))):
+		return false;
+	if(data["source_node"] == null):
+		return false;
+		
+	return true;
