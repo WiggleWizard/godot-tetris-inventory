@@ -90,6 +90,9 @@ func set_inventory_size(new_size):
 # Adds an item to the player's inventory at a specific slot, if successful then
 # return true.
 func add_item_at(item_uid, slot, amount = 1):
+	if(ItemDatabase.get_item(item_uid) == null):
+		return false;
+		
 	if(would_be_in_bounds(item_uid, slot) && can_item_fit(item_uid, slot)):
 		var inventory_item_id = _add_to_inventory_list(item_uid, slot);
 		
@@ -102,6 +105,9 @@ func add_item_at(item_uid, slot, amount = 1):
 # Appends an item to the inventory, attempting to find a spare slot for it.
 # `item_id` should be a valid item ID that's been registered to the global item database.
 func append_item(item_uid, amount = 1):
+	if(ItemDatabase.get_item(item_uid) == null):
+		return false;
+		
 	var slot = find_slot_for_item(item_uid);
 	if(slot.x > -1 && slot.y > -1):
 		var inventory_item_id = _add_to_inventory_list(item_uid, slot);
@@ -146,6 +152,9 @@ func remove_item(inventory_item_id):
 # Returns the slot as Vector2, if either component is below 0 then
 # no appropriate slot was found for the item.
 func find_slot_for_item(item_uid, mask = []):
+	if(ItemDatabase.get_item(item_uid) == null):
+		return Vector2(-1, -1);
+		
 	for y in range(inventory_size.y):
 		for x in range(inventory_size.x):
 			var slot = Vector2(x, y);
@@ -156,6 +165,9 @@ func find_slot_for_item(item_uid, mask = []):
 	
 # Checks if an item can fit at a specific slot.
 func can_item_fit(item_uid, slot, mask = []):
+	if(ItemDatabase.get_item(item_uid) == null):
+		return false;
+		
 	if(!would_be_in_bounds(item_uid, slot)):
 		return false;
 		
