@@ -15,6 +15,11 @@ signal item_moved;
 signal item_removed;
 signal item_stack_size_change;
 
+enum DragModifier {
+	DRAG_ALL,
+	DRAG_SPLIT_HALF
+}
+
 
 # Special class to represent an inventory item
 class InventoryItem:
@@ -178,14 +183,28 @@ func set_item_stack_size(inventory_item_id, new_size):
 	
 	emit_signal("item_stack_size_change", _inventory[inventory_item_id]);
 	
+func remove_from_stack(inventory_item_id, amount):
+	if(!_inventory[inventory_item_id]):
+		return 0;
+		
+	_inventory[inventory_item_id]._remove_from_stack(amount);
+	
+	return _inventory[inventory_item_id].get_stack_size();
+	
 # Moves inventory item from where it is currently to `slot`
-func move_item(inventory_item_id, to_slot):
+func move_item(inventory_item_id, to_slot, amount = -1):
 	if(can_inventory_item_fit(inventory_item_id, to_slot)):
-		_inventory[inventory_item_id]._set_slot(to_slot);
-		
+		# Move the whole stack
+		if(amount == -1 || amount == _inventory[inventory_item_id].get_stack_size()):
+			_inventory[inventory_item_id]._set_slot(to_slot);
+			emit_signal("item_moved", _inventory[inventory_item_id]);
+		# We only want to move specified amount off the stack
+		else:
+			var inventory_item = _inventory[inventory_item_id];
+			remove_from_stack(inventory_item_id, amount);
+			add_item_at(inventory_item.get_item_uid(), to_slot, amount);
+	else:
 		emit_signal("item_moved", _inventory[inventory_item_id]);
-		
-	emit_signal("item_moved", _inventory[inventory_item_id]);
 	
 # Removes an item at specific ID. This ID can be fetched by using
 # get_id_at_slot().
@@ -311,9 +330,13 @@ func sweep(item_uid, slot, mask = []):
 	return collision_list;
 	
 # Call this when the player begins a drag from the inventory.
-func get_base_drag_data(slot):
+func get_base_drag_data(slot, drag_modifier = DragModifier.DRAG_ALL):
 	var inventory_id = get_id_at_slot(slot);
 	var inventory_item = get_inventory_item(inventory_id);
+	
+	var stack_size = inventory_item.get_stack_size();
+	if(drag_modifier == DragModifier.DRAG_SPLIT_HALF):
+		stack_size = ceil(stack_size / 2);
 	
 	# If it's a legit item
 	if(is_valid_id(inventory_id)):
@@ -323,7 +346,7 @@ func get_base_drag_data(slot):
 			"inventory_id": inventory_id,
 			"item_uid": inventory_item.get_item_uid(),
 			"slot": slot,
-			"stack_size": inventory_item.get_stack_size(),
+			"stack_size": stack_size,
 			"mouse_down_slot_offset": mouse_down_slot_offset,
 			"backend": self
 		};

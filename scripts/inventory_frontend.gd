@@ -200,30 +200,41 @@ func get_drag_data(position):
 	if(_inventory_backend.is_valid_id(inventory_id)):
 		var mapped_node = get_mapped_node(inventory_id);
 		if(mapped_node):
-			mapped_node.modulate.a = drag_alpha;
-			
 			var inventory_item = _inventory_backend.get_inventory_item(inventory_id);
 			var item           = inventory_item.get_item();
 			var inventory_size = item.get_size();
 			
-			# Create an outer for the preview so we can have an offset.
-			var outer = Control.new();
-			var inner = inventory_component_scene.instance();
-			set_drag_preview(outer);
+			# Get drag modifier (holding certain buttons can split the stack, etc)
+			var drag_modifier = _inventory_backend.DragModifier.DRAG_ALL;
+			if(Input.is_action_pressed("half_stack_modifier")):
+				drag_modifier = _inventory_backend.DragModifier.DRAG_SPLIT_HALF;
 			
-			# Callbacks for display node
-			if(inner.has_method("set_display_data")):
-				inner.set_display_data(inventory_item.get_item_uid(), inventory_item.get_stack_size(), "dragging");
-			
-			outer.add_child(inner);
-			outer.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
-			inner.set_position(mapped_node.get_position() - position);
 			
 			# Populate the drag data
-			var base_drag_data = _inventory_backend.get_base_drag_data(drag_start_slot);
+			var base_drag_data = _inventory_backend.get_base_drag_data(drag_start_slot, drag_modifier);
 			base_drag_data["source_node"] = self;
 			base_drag_data["mapped_node"] = mapped_node;
 			_drag_data = base_drag_data;
+			
+			# If we are dragging the whole stack then hide it
+			if(_drag_data["stack_size"] == inventory_item.get_stack_size()):
+				mapped_node.modulate.a = drag_alpha;
+			elif(get_mapped_node(inventory_id).has_method("stack_size_changed")):
+				get_mapped_node(inventory_id).stack_size_changed(inventory_item.get_stack_size() - _drag_data["stack_size"]);
+			
+			# Create an outer for the preview so we can have an offset.
+			var inner = inventory_component_scene.instance();
+			
+			# Callbacks for display node
+			if(inner.has_method("set_display_data")):
+				inner.set_display_data(inventory_item.get_item_uid(), base_drag_data["stack_size"], "dragging");
+			
+			# Add drag preview
+			var outer = Control.new();
+			set_drag_preview(outer);
+			outer.add_child(inner);
+			outer.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
+			inner.set_position(mapped_node.get_position() - position);
 			
 			return _drag_data;
 	
@@ -295,7 +306,7 @@ func drop_data(position, data):
 		
 		# Same inventory as source
 		if(source_node == self):
-			_inventory_backend.move_item(data["inventory_id"], new_slot);
+			_inventory_backend.move_item(data["inventory_id"], new_slot, data["stack_size"]);
 		else:
 			var item_uid = data["item_uid"];
 			
@@ -320,7 +331,8 @@ func drop_data(position, data):
 	
 # Curtesy call from controls that have had the item from this Node dropped into.	
 func drop_fw(from_control):
-	print(from_control);
+	#print(from_control);
+	pass;
 		
 # Callback for when a drop is "acknowledged" from a third party node
 func validate_drop(valid = true):
