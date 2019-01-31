@@ -2,21 +2,20 @@ extends Node
 
 class_name ItemDB
 
-var _database = [];
+var _database = {};
 
 
-# Adds an item into the database, and returns its ID.
-func register_new_item(new_item):
-	for i in range(_database.size()):
-		if(_database[i] == null):
-			_database[i] = new_item;
-			new_item._id = i;
-			
-			return new_item._id;
-			
-	_database.append(new_item);
-	new_item._id = _database.size() - 1;
-	return new_item._id;
+# Adds an item into the database. Returns true if successful.
+func register_new_item(uid, new_item):
+	if(!get_item(uid)):
+		_database[uid] = new_item;
+		new_item._uid = uid;
+		
+		return true;
+		
+	return false;
 	
-func get_item(id):
-	return _database[id];
+func get_item(uid):
+	if(_database.has(uid)):
+		return _database[uid];
+	return null;

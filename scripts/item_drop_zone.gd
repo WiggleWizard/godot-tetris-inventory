@@ -6,7 +6,7 @@ export(bool) var remove_from_source = false;
 export(bool) var allow_drop_swapping = true;
 export(Array, String) var inclusive_filter = [];
 
-var _item_id    = -1;
+var _item_uid   = "";
 var _stack_size = 1;
 
 # A Control node that sinks all mouse events so the developer decorate the zone
@@ -21,8 +21,8 @@ var _drop_fw = false;
 # Public
 #==========================================================================
 
-func get_curr_item_id():
-	return _item_id;
+func get_curr_item_uid():
+	return _item_uid;
 
 
 #==========================================================================
@@ -35,7 +35,7 @@ func drag_hover(allow, data):
 	pass;
 	
 # Public callback for when an item has been dropped from an inventory.
-func dropped_item_from_inventory(item_id, stack_size = 1):
+func dropped_item_from_inventory(item_uid, stack_size = 1):
 	pass;
 	
 
@@ -81,13 +81,13 @@ func get_drag_data_fw(position, from_control):
 	return {
 		"source_node": self,
 		"source": "drop_zone",
-		"item_id": _item_id
+		"item_uid": _item_uid
 	};
 
 func can_drop_data_fw(position, data, from_control):
-	if(data.has("item_id")):
-		var item_id = data["item_id"];
-		drag_hover(_is_item_allowed(item_id), data);
+	if(data.has("item_uid")):
+		var item_uid = data["item_uid"];
+		drag_hover(_is_item_allowed(item_uid), data);
 	
 	return true;
 	
@@ -95,8 +95,8 @@ func drop_data_fw(position, data, from_control):
 	_dropped_internally = true;
 	var source_node = data["source_node"];
 	
-	if(data.has("item_id")):
-		var allowed = _is_item_allowed(data["item_id"]);
+	if(data.has("item_uid")):
+		var allowed = _is_item_allowed(data["item_uid"]);
 		
 		# If from inventory
 		if(source_node && data["source"] == "inventory"):
@@ -105,8 +105,8 @@ func drop_data_fw(position, data, from_control):
 			
 			if(allowed && proceed_with_drop):
 				# Deal with adding the item in to the drop zone memory
-				_item_id = data["item_id"];
-				dropped_item_from_inventory(data["item_id"]);
+				_item_uid = data["item_uid"];
+				dropped_item_from_inventory(_item_uid);
 			
 		# Otherwise just notify the source
 		elif(source_node && source_node.has_method("_on_drop_zone_drop")):
@@ -126,13 +126,13 @@ func gutter_drop():
 
 # Checks whether this item ID is allowed in this drop zone. Check is done by
 # item type.
-func _is_item_allowed(item_id):
-	if(!allow_drop_swapping && get_curr_item_id() > -1):
+func _is_item_allowed(item_uid):
+	if(!allow_drop_swapping && get_curr_item_uid() > -1):
 		return false;
 	
 	var is_allowed = false;
 	if(inclusive_filter.size() > 0):
-		var item = ItemDatabase.get_item(item_id);
+		var item = ItemDatabase.get_item(item_uid);
 		if(inclusive_filter.find(item.get_type()) > -1):
 			is_allowed = true;
 	else:

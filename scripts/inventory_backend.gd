@@ -19,12 +19,12 @@ signal item_stack_size_change;
 class InventoryItem:
 	var _id         = -1;
 	var _slot       = Vector2(-1, -1);
-	var _item_id    = null;
+	var _item_uid   = "";
 	var _stack_size = 1;
 	
-	func _init(id, item_id):
+	func _init(id, item_uid):
 		_id = id;
-		_item_id = item_id;
+		_item_uid = item_uid;
 		
 	func get_id():
 		return _id;
@@ -38,11 +38,11 @@ class InventoryItem:
 	func at_max_stack():
 		return _stack_size >= get_item().get_max_stack_size();
 		
-	func get_item_id():
-		return _item_id;
+	func get_item_uid():
+		return _item_uid;
 		
 	func get_item():
-		return ItemDatabase.get_item(_item_id);
+		return ItemDatabase.get_item(_item_uid);
 		
 	# Purely for convenience
 	func get_data():
@@ -50,7 +50,7 @@ class InventoryItem:
 			"id":         get_id(),
 			"slot":       get_slot(),
 			"stack_size": get_stack_size(),
-			"item_id":    get_item_id()
+			"item_uid":   get_item_uid()
 		};
 		
 	func in_range():
@@ -59,7 +59,7 @@ class InventoryItem:
 		return true;
 		
 	func get_rect():
-		var item = ItemDatabase.get_item(_item_id);
+		var item = ItemDatabase.get_item(_item_uid);
 		return Rect2(_slot, item.get_size());
 		
 	func intersects(inventory_item_b):
@@ -89,9 +89,9 @@ func set_inventory_size(new_size):
 	
 # Adds an item to the player's inventory at a specific slot, if successful then
 # return true.
-func add_item_at(item_id, slot):
-	if(would_be_in_bounds(item_id, slot) && can_item_fit(item_id, slot)):
-		var inventory_item_id = _add_to_inventory_list(item_id, slot);
+func add_item_at(item_uid, slot):
+	if(would_be_in_bounds(item_uid, slot) && can_item_fit(item_uid, slot)):
+		var inventory_item_id = _add_to_inventory_list(item_uid, slot);
 		
 		emit_signal("item_added", _inventory[inventory_item_id]);
 		
@@ -101,10 +101,10 @@ func add_item_at(item_id, slot):
 	
 # Appends an item to the inventory, attempting to find a spare slot for it.
 # `item_id` should be a valid item ID that's been registered to the global item database.
-func append_item(item_id):
-	var slot = find_slot_for_item(item_id);
+func append_item(item_uid):
+	var slot = find_slot_for_item(item_uid);
 	if(slot.x > -1 && slot.y > -1):
-		var inventory_item_id = _add_to_inventory_list(item_id, slot);
+		var inventory_item_id = _add_to_inventory_list(item_uid, slot);
 		
 		emit_signal("item_added", _inventory[inventory_item_id]);
 		
@@ -145,33 +145,33 @@ func remove_item(inventory_item_id):
 # Attempts to find a slot for the item.
 # Returns the slot as Vector2, if either component is below 0 then
 # no appropriate slot was found for the item.
-func find_slot_for_item(item_id, mask = []):
+func find_slot_for_item(item_uid, mask = []):
 	for y in range(inventory_size.y):
 		for x in range(inventory_size.x):
 			var slot = Vector2(x, y);
-			if(would_be_in_bounds(item_id, slot) && can_item_fit(item_id, slot, mask)):
+			if(would_be_in_bounds(item_uid, slot) && can_item_fit(item_uid, slot, mask)):
 				return slot;
 				
 	return Vector2(-1, -1);
 	
 # Checks if an item can fit at a specific slot.
-func can_item_fit(item_id, slot, mask = []):
-	if(!would_be_in_bounds(item_id, slot)):
+func can_item_fit(item_uid, slot, mask = []):
+	if(!would_be_in_bounds(item_uid, slot)):
 		return false;
 		
-	if(sweep(item_id, slot, mask).size() == 0):
+	if(sweep(item_uid, slot, mask).size() == 0):
 		return true;
 	return false;
 	
 # Checks if an inventory item can fit into a specific slot. This function is mainly used for
 # moving items that are already in the inventory around.
 func can_inventory_item_fit(inventory_item_id, slot):
-	var item_id = _inventory[inventory_item_id].get_item_id();
+	var item_uid = _inventory[inventory_item_id].get_item_uid();
 	
-	if(!would_be_in_bounds(item_id, slot)):
+	if(!would_be_in_bounds(item_uid, slot)):
 		return false;
 		
-	var sweep_result = sweep(item_id, slot);
+	var sweep_result = sweep(item_uid, slot);
 	
 	# Not colliding with anything
 	if(sweep_result.size() == 0):
@@ -187,8 +187,8 @@ func can_inventory_item_fit(inventory_item_id, slot):
 #==========================================================================	
 
 # Checks to see if the item would be within the bounds of the inventory space.
-func would_be_in_bounds(item_id, slot):
-	var item           = ItemDatabase.get_item(item_id);
+func would_be_in_bounds(item_uid, slot):
+	var item           = ItemDatabase.get_item(item_uid);
 	var item_sz        = item.get_size();
 	var item_rect      = Rect2(slot, item_sz);
 	var inventory_rect = Rect2(0, 0, inventory_size.x + 1, inventory_size.y + 1);
@@ -224,11 +224,11 @@ func get_all_inventory_items():
 	return _inventory;
 	
 # Returns an array of collided inventory item IDs if this item were to be put in `slot`.
-func sweep(item_id, slot, mask = []):
+func sweep(item_uid, slot, mask = []):
 	var collision_list = [];
 	
 	# Convenience variables
-	var item           = ItemDatabase.get_item(item_id);
+	var item           = ItemDatabase.get_item(item_uid);
 	var item_sz        = item.get_size();
 	var item_rect      = Rect2(slot, item_sz);
 	
@@ -257,7 +257,7 @@ func begin_drag(slot):
 		return {
 			"source": "inventory",
 			"inventory_id": inventory_id,
-			"item_id": get_inventory_item(inventory_id).get_item_id(),
+			"item_uid": get_inventory_item(inventory_id).get_item_uid(),
 			"slot": slot,
 			"mouse_down_slot_offset": mouse_down_slot_offset,
 			"backend": self
@@ -276,18 +276,18 @@ func drop(dest):
 #==========================================================================	
 
 # Adds the item ID to the inventory list and returns the inventory item ID.
-func _add_to_inventory_list(item_id, slot = Vector2(-1, -1)):
+func _add_to_inventory_list(item_uid, slot = Vector2(-1, -1)):
 	# Look for an empty slot to put this item
 	for i in range(_inventory.size()):
 		if(_inventory[i] == null):
-			_inventory[i] = InventoryItem.new(i, item_id);
+			_inventory[i] = InventoryItem.new(i, item_uid);
 			_inventory[i]._set_slot(slot);
 			
 			return i;
 			
-	_inventory.append(InventoryItem.new(_inventory.size(), item_id));
-	var new_item_id = _inventory.size() - 1;
+	_inventory.append(InventoryItem.new(_inventory.size(), item_uid));
+	var new_item_uid = _inventory.size() - 1;
 	
-	_inventory[new_item_id]._set_slot(slot);
+	_inventory[new_item_uid]._set_slot(slot);
 	
-	return new_item_id;
+	return new_item_uid;

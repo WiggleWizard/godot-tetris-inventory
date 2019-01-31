@@ -234,7 +234,7 @@ func can_drop_data(position, data):
 		# Since we don't need to run this code every time the mouse moves, we can do some
 		# simple calculation to figure out if the mouse has changed slots.
 		if(_prev_drag_slot != mouse_curr_slot):
-			var item           = ItemDatabase.get_item(data["item_id"]);
+			var item           = ItemDatabase.get_item(data["item_uid"]);
 			var item_slot_size = item.get_size();
 			var offset_slot    = mouse_curr_slot - data["mouse_down_slot_offset"];
 	
@@ -249,7 +249,7 @@ func can_drop_data(position, data):
 				can_item_fit = _inventory_backend.can_inventory_item_fit(data["inventory_id"], offset_slot);
 			# Different inventory origin
 			elif(data.has("source") && data["source"] == "inventory"):
-				can_item_fit = _inventory_backend.can_item_fit(data["item_id"], offset_slot);
+				can_item_fit = _inventory_backend.can_item_fit(data["item_uid"], offset_slot);
 				
 			# Set move indicator to different colors depending on whether item can fit
 			# or not.
@@ -261,7 +261,7 @@ func can_drop_data(position, data):
 			
 	if(data["source"] == "drop_zone"):
 		if(_prev_drag_slot != mouse_curr_slot):
-			var item           = ItemDatabase.get_item(data["item_id"]);
+			var item           = ItemDatabase.get_item(data["item_uid"]);
 			var item_slot_size = item.get_size();
 			
 			# Draw move indicator in the right place
@@ -269,7 +269,7 @@ func can_drop_data(position, data):
 			_move_indicator.set_position(Vector2(mouse_curr_slot.x * slot_size, mouse_curr_slot.y * slot_size));
 			_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
 			
-			var can_item_fit = _inventory_backend.can_item_fit(data["item_id"], mouse_curr_slot);
+			var can_item_fit = _inventory_backend.can_item_fit(data["item_uid"], mouse_curr_slot);
 			if(can_item_fit == true):
 				_move_indicator.set_frame_color(valid_move_color);
 			else:
@@ -291,14 +291,14 @@ func drop_data(position, data):
 		if(source_node == self):
 			_inventory_backend.move_item(data["inventory_id"], new_slot);
 		else:
-			var item_id = data["item_id"];
+			var item_uid = data["item_uid"];
 			
 			# Ensure that current slot is valid
-			if(_inventory_backend.can_item_fit(item_id, new_slot)):
+			if(_inventory_backend.can_item_fit(item_uid, new_slot)):
 				# Remove from source inventory, then add to the current inventory and
 				# confer with the originating inventory that it was a valid drop.
 				data["backend"].remove_item(data["inventory_id"]);
-				_inventory_backend.add_item_at(item_id, new_slot);
+				_inventory_backend.add_item_at(item_uid, new_slot);
 				source_node.validate_drop(true);
 			else:
 				source_node.validate_drop(false);
@@ -306,7 +306,7 @@ func drop_data(position, data):
 		_move_indicator.set_visible(false);
 		
 	elif(data["source"] == "drop_zone"):
-		print(data["item_id"]);
+		print(data["item_uid"]);
 	
 	# Curtesy call source node
 	if(source_node.has_method("drop_fw")):
@@ -330,19 +330,19 @@ func drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, des
 	validate_drop(true);
 	
 	if(remove_from_source && accepted):
-		var curr_item_id = dest.get_curr_item_id();
-		if(curr_item_id != -1):
+		var curr_item_uid = dest.get_curr_item_uid();
+		if(curr_item_uid != ""):
 			# If the drop zone already has something in it, then we need to swap it out.
 			# So first we attempt to find space in the inventory for the item (while ignoring
 			# the item that was dropped as it's still in the inventory). If there's
 			# no available slot then we refuse the drop.
-			var fittable_slot = _inventory_backend.find_slot_for_item(curr_item_id, [dropped_inventory_item_id]);
+			var fittable_slot = _inventory_backend.find_slot_for_item(curr_item_uid, [dropped_inventory_item_id]);
 			if(fittable_slot.x > -1 && fittable_slot.y > -1):
 				# Remove dropped item
 				_inventory_backend.remove_item(dropped_inventory_item_id);
 				
 				# Add item that was in the drop zone
-				_inventory_backend.add_item_at(curr_item_id, fittable_slot);
+				_inventory_backend.add_item_at(curr_item_uid, fittable_slot);
 				
 				return true;
 			else:

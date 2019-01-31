@@ -2,7 +2,7 @@ extends Node
 
 class_name ItemBase
 
-var _id             = -1;
+var _uid            = "";
 var _name           = "Unnamed Item";
 var _type           = "item";
 var _inventory_size = Vector2(1, 1);
@@ -13,8 +13,8 @@ var _clip_offset = Vector2(0, 0);
 var _clip_size   = Vector2(0, 0);
 
 
-func get_id():
-	return _id;
+func get_uid():
+	return _uid;
 	
 func get_name():
 	return _name;
