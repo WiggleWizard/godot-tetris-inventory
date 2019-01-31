@@ -3,6 +3,7 @@ extends Node
 class_name Inventory
 
 export(Vector2) var inventory_size = Vector2(1, 1) setget set_inventory_size, get_inventory_size;
+export(bool) var auto_stack = true;
 
 var _inventory = [];
 
@@ -34,6 +35,9 @@ class InventoryItem:
 		
 	func get_stack_size():
 		return _stack_size;
+		
+	func set_stack_size(new_size):
+		_stack_size = new_size;
 		
 	func at_max_stack():
 		return _stack_size >= get_item().get_max_stack_size();
@@ -105,25 +109,72 @@ func add_item_at(item_uid, slot, amount = 1):
 # Appends an item to the inventory, attempting to find a spare slot for it.
 # `item_id` should be a valid item ID that's been registered to the global item database.
 func append_item(item_uid, amount = 1):
-	if(ItemDatabase.get_item(item_uid) == null):
-		return false;
+	var item = ItemDatabase.get_item(item_uid);
+	if(item == null):
+		return 0;
 		
-	var slot = find_slot_for_item(item_uid);
-	if(slot.x > -1 && slot.y > -1):
-		var inventory_item_id = _add_to_inventory_list(item_uid, slot);
+	var item_max_stack_size = item.get_max_stack_size();
 		
-		emit_signal("item_added", _inventory[inventory_item_id]);
+	var amount_added = 0;
 		
-		return true;
-		
-	return false;
+	# Stack onto existing items in the inventory as much as possible
+	if(auto_stack && item.get_max_stack_size() > 1):
+		for inventory_item in _inventory:
+			# Only if it's the same item UID and it's not at max stack
+			if(inventory_item.get_item_uid() == item_uid && !inventory_item.at_max_stack()):
+				var stack_size = inventory_item.get_stack_size();
+				var item_stack_remainder = item_max_stack_size - stack_size;
+				
+				# Can't put anymore on this stack
+				if(item_stack_remainder == 0):
+					continue;
+					
+				# Calculate amount left after we add to this stack
+				var amount_left = amount - item_stack_remainder;
+				if(amount_left <= 0):
+					set_item_stack_size(inventory_item.get_id(), stack_size + amount);
+					amount_added += amount;
+					amount = 0;
+				else:
+					set_item_stack_size(inventory_item.get_id(), item_max_stack_size);
+					amount_added += item_max_stack_size;
+					amount = amount_left;
+	
+	if(amount > 0):
+		# At this point, we know that all the existing same items have been stacked
+		# fully. So we are adding new entries to the inventory now.
+		var amount_left = amount;
+		while true:
+			var slot = find_slot_for_item(item_uid);
+			if(slot.x > -1 && slot.y > -1):
+				var inventory_item_id = -1;
+				
+				# Last of the stacks
+				if(amount_left < item.get_max_stack_size()):
+					inventory_item_id = _add_to_inventory_list(item_uid, slot, amount_left);
+					amount_added += amount_left;
+					amount_left = 0;
+				else:
+					inventory_item_id = _add_to_inventory_list(item_uid, slot, item.get_max_stack_size());
+					amount_added += item.get_max_stack_size();
+					amount_left -= item.get_max_stack_size();
+					
+				emit_signal("item_added", _inventory[inventory_item_id]);
+				
+				if(amount_left <= 0):
+					break;
+			# Cannot find a free slot for this new item stack
+			else:
+				break;
+				
+	return amount_added;
 	
 # Sets the inventory item stack size
 func set_item_stack_size(inventory_item_id, new_size):
 	if(!_inventory[inventory_item_id]):
 		return false;
 		
-	_inventory[inventory_item_id]._set_stack_size(new_size);
+	_inventory[inventory_item_id].set_stack_size(new_size);
 	
 	emit_signal("item_stack_size_change", _inventory[inventory_item_id]);
 	
@@ -288,12 +339,13 @@ func drop(dest):
 #==========================================================================	
 
 # Adds the item ID to the inventory list and returns the inventory item ID.
-func _add_to_inventory_list(item_uid, slot = Vector2(-1, -1)):
+func _add_to_inventory_list(item_uid, slot = Vector2(-1, -1), stack_size = 1):
 	# Look for an empty slot to put this item
 	for i in range(_inventory.size()):
 		if(_inventory[i] == null):
 			_inventory[i] = InventoryItem.new(i, item_uid);
 			_inventory[i]._set_slot(slot);
+			_inventory[i].set_stack_size(stack_size);
 			
 			return i;
 			
@@ -301,5 +353,6 @@ func _add_to_inventory_list(item_uid, slot = Vector2(-1, -1)):
 	var new_item_uid = _inventory.size() - 1;
 	
 	_inventory[new_item_uid]._set_slot(slot);
+	_inventory[new_item_uid].set_stack_size(stack_size);
 	
 	return new_item_uid;

@@ -49,3 +49,14 @@ scale = Vector2( 0.3, 0.3 )
 centered = false
 region_enabled = true
 
+[node name="Label" type="Label" parent="."]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -8.0
+margin_top = -14.0
+grow_horizontal = 0
+text = "1"
+align = 2
+

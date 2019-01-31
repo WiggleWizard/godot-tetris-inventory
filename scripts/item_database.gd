@@ -57,8 +57,8 @@ func load_json_db(path):
 		item_instance._uid  = key;
 		item_instance._type = item_dict["type"];
 		item_instance._name = item_dict["name"];
-		
 		item_instance._inventory_size = Vector2(item_dict["slots_in_inventory"]["width"], item_dict["slots_in_inventory"]["height"]);
+		item_instance._max_stack_size = item_dict["max_stack"];
 		
 		_item_database[key] = item_instance;
 			

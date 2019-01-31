@@ -2,15 +2,22 @@ extends Control
 
 class_name ItemDropZone
 
+
 export(bool) var remove_from_source = false;
 export(bool) var allow_drop_swapping = true;
 export(Array, String) var inclusive_filter = [];
+export(PackedScene) var display_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
+export(Vector2) var drag_slot_size = Vector2(64, 64);
+
+signal item_dropped;
+signal item_removed;
 
 var _item_uid   = "";
 var _stack_size = 1;
 
 # A Control node that sinks all mouse events so the developer decorate the zone
 # however.
+var _container       = null;
 var _mouse_sink_node = null;
 
 var _dropped_internally = false;
@@ -38,6 +45,7 @@ func drag_hover(allow, data):
 func dropped_item_from_inventory(item_uid, stack_size = 1):
 	pass;
 	
+	
 
 #==========================================================================
 # Events
@@ -46,9 +54,14 @@ func dropped_item_from_inventory(item_uid, stack_size = 1):
 func _ready():
 	set_process(false);
 	
+	_container       = Container.new();
 	_mouse_sink_node = Control.new();
+	
+	add_child(_container);
 	add_child(_mouse_sink_node);
 	
+	_container.set_anchors_and_margins_preset(PRESET_WIDE);
+	_container.set_mouse_filter(MOUSE_FILTER_IGNORE);
 	_mouse_sink_node.set_drag_forwarding(self);
 	_mouse_sink_node.set_anchors_and_margins_preset(Control.PRESET_WIDE);
 	
@@ -76,8 +89,25 @@ func _process(delta):
 #==========================================================================	
 
 func get_drag_data_fw(position, from_control):
+	# Don't allow the user to drag when nothing in here
+	if(_item_uid == ""):
+		return null;
+		
 	set_process(true);
 	
+	var item = ItemDatabase.get_item(_item_uid);
+	var size = item.get_size();
+	
+	# Create an outer for the preview so we can have an offset.
+	var outer = Control.new();
+	var inner = display_scene.instance();
+	set_drag_preview(outer);
+	
+	outer.add_child(inner);
+	outer.set_size(Vector2(size.x * drag_slot_size.x, size.y * drag_slot_size.y));
+	inner.set_position(-position);
+
+	# Populate the drag data
 	return {
 		"source_node": self,
 		"source": "drop_zone",
@@ -106,6 +136,12 @@ func drop_data_fw(position, data, from_control):
 			if(allowed && proceed_with_drop):
 				# Deal with adding the item in to the drop zone memory
 				_item_uid = data["item_uid"];
+				
+				# Setup and add the display node
+				var new_scene = display_scene.instance();
+				new_scene.set_display_data(_item_uid, "drop_zone");
+				_container.add_child(new_scene);
+				
 				dropped_item_from_inventory(_item_uid);
 			
 		# Otherwise just notify the source
@@ -120,9 +156,19 @@ func drop_fw(from_control):
 func gutter_drop():
 	pass;
 
+
 #==========================================================================
 # Private Internal
-#==========================================================================		
+#==========================================================================
+
+func _is_drop_data_valid(data):
+	if(!data && (!data.has("source") || !data.has("source_node") || !data.has("item_uid"))):
+		return false;
+		
+	if(data["source_node"] == null):
+		return false;
+		
+	return true;
 
 # Checks whether this item ID is allowed in this drop zone. Check is done by
 # item type.

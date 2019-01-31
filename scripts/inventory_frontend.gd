@@ -15,9 +15,10 @@ export(PackedScene) var inventory_component_scene = preload("res://addons/tetris
 var _inventory_backend = null;
 var _inventory_node_mapping = {};
 
-var _move_indicator  = null;
-var _mouse_sink_node = null;
 var _container       = null;
+var _mouse_sink_node = null;
+var _move_indicator  = null;
+
 
 var _drag_data = null;
 var _dragging_from_inventory = false;
@@ -52,7 +53,7 @@ func item_added(inventory_item):
 		
 		var display_data = item.fetch_inventory_display_data();
 		var new_scene = inventory_component_scene.instance();
-		new_scene.set_display_data(display_data["texture"], display_data["clip_offset"], display_data["clip_size"]);
+		new_scene.set_display_data(item.get_uid(), inventory_item.get_stack_size(), "inventory");
 		
 		# Map the scene to the inventory ID
 		_inventory_node_mapping[inventory_id] = new_scene;
@@ -62,7 +63,6 @@ func item_added(inventory_item):
 		new_scene.mouse_filter = MOUSE_FILTER_IGNORE;
 		new_scene.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
 		new_scene.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
-		new_scene.set_meta("inventory_id", inventory_id);
 
 func item_moved(inventory_item):
 	var slot                = inventory_item.get_slot();
@@ -74,7 +74,9 @@ func item_moved(inventory_item):
 		inventory_item_node.modulate.a = 1;
 
 func item_stack_size_change(inventory_item):
-	print("Stack size changed");
+	var inventory_item_node = get_mapped_node(inventory_item.get_id());
+	if(inventory_item_node.has_method("stack_size_changed")):
+		inventory_item_node.stack_size_changed(inventory_item.get_stack_size());
 	
 func item_removed(inventory_item):
 	var inventory_id = inventory_item.get_id();

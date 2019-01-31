@@ -8,9 +8,9 @@ var _type           = "item";
 var _inventory_size = Vector2(1, 1);
 var _max_stack_size = 1;
 
-var _texture     = null;
-var _clip_offset = Vector2(0, 0);
-var _clip_size   = Vector2(0, 0);
+var _texture           = null;
+var _clip_pixel_offset = Vector2(0, 0);
+var _clip_pixel_size   = Vector2(0, 0);
 
 
 func get_uid():
@@ -44,18 +44,9 @@ func set_size(new_size):
 	
 	return true;
 	
-func set_texture(new_texture):
-	_texture = new_texture;
-	
-func set_clip_offset(new_clip_offset : Vector2):
-	_clip_offset = new_clip_offset;
-	
-func set_clip_size(new_clip_size : Vector2):
-	_clip_size = new_clip_size;
-	
 func fetch_inventory_display_data():
 	return {
-		"texture":     _texture,
-		"clip_offset": _clip_offset,
-		"clip_size":   _clip_size
+		"texture":           _texture,
+		"clip_pixel_offset": _clip_pixel_offset,
+		"clip_pixel_size":   _clip_pixel_size
 	};
