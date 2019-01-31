@@ -11,7 +11,8 @@ var _generic_db_path = "res://item_database.json";
 
 func _ready():
 	# Attempt to load a generic path
-	if(File.file_exists(_generic_db_path)):
+	var file = File.new();
+	if(file.file_exists(_generic_db_path)):
 		load_json_db(_generic_db_path);
 	
 func get_item(uid):
