@@ -211,12 +211,16 @@ func get_drag_data(position):
 			var inner = inventory_component_scene.instance();
 			set_drag_preview(outer);
 			
+			# Callbacks for display node
+			if(inner.has_method("set_display_data")):
+				inner.set_display_data(inventory_item.get_item_uid(), inventory_item.get_stack_size(), "dragging");
+			
 			outer.add_child(inner);
 			outer.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
 			inner.set_position(mapped_node.get_position() - position);
-
+			
 			# Populate the drag data
-			var base_drag_data = _inventory_backend.begin_drag(drag_start_slot);
+			var base_drag_data = _inventory_backend.get_base_drag_data(drag_start_slot);
 			base_drag_data["source_node"] = self;
 			base_drag_data["mapped_node"] = mapped_node;
 			_drag_data = base_drag_data;
@@ -300,7 +304,7 @@ func drop_data(position, data):
 				# Remove from source inventory, then add to the current inventory and
 				# confer with the originating inventory that it was a valid drop.
 				data["backend"].remove_item(data["inventory_id"]);
-				_inventory_backend.add_item_at(item_uid, new_slot);
+				_inventory_backend.add_item_at(item_uid, new_slot, data["stack_size"]);
 				source_node.validate_drop(true);
 			else:
 				source_node.validate_drop(false);

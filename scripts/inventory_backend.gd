@@ -98,7 +98,7 @@ func add_item_at(item_uid, slot, amount = 1):
 		return false;
 		
 	if(would_be_in_bounds(item_uid, slot) && can_item_fit(item_uid, slot)):
-		var inventory_item_id = _add_to_inventory_list(item_uid, slot);
+		var inventory_item_id = _add_to_inventory_list(item_uid, slot, amount);
 		
 		emit_signal("item_added", _inventory[inventory_item_id]);
 		
@@ -311,8 +311,9 @@ func sweep(item_uid, slot, mask = []):
 	return collision_list;
 	
 # Call this when the player begins a drag from the inventory.
-func begin_drag(slot):
+func get_base_drag_data(slot):
 	var inventory_id = get_id_at_slot(slot);
+	var inventory_item = get_inventory_item(inventory_id);
 	
 	# If it's a legit item
 	if(is_valid_id(inventory_id)):
@@ -320,18 +321,14 @@ func begin_drag(slot):
 		return {
 			"source": "inventory",
 			"inventory_id": inventory_id,
-			"item_uid": get_inventory_item(inventory_id).get_item_uid(),
+			"item_uid": inventory_item.get_item_uid(),
 			"slot": slot,
+			"stack_size": inventory_item.get_stack_size(),
 			"mouse_down_slot_offset": mouse_down_slot_offset,
 			"backend": self
 		};
 		
 	return null;
-	
-# Call this when the above has been dropped somewhere.
-func drop(dest):
-	if(dest != "inventory"):
-		return;
 
 
 #==========================================================================
