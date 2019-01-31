@@ -154,8 +154,11 @@ func find_slot_for_item(item_id, mask = []):
 				
 	return Vector2(-1, -1);
 	
-# Checks if an item can fit at a specific slot. Does not do boundary check.
+# Checks if an item can fit at a specific slot.
 func can_item_fit(item_id, slot, mask = []):
+	if(!would_be_in_bounds(item_id, slot)):
+		return false;
+		
 	if(sweep(item_id, slot, mask).size() == 0):
 		return true;
 	return false;
@@ -256,7 +259,8 @@ func begin_drag(slot):
 			"inventory_id": inventory_id,
 			"item_id": get_inventory_item(inventory_id).get_item_id(),
 			"slot": slot,
-			"mouse_down_slot_offset": mouse_down_slot_offset
+			"mouse_down_slot_offset": mouse_down_slot_offset,
+			"backend": self
 		};
 		
 	return null;

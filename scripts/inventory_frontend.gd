@@ -111,11 +111,9 @@ func _ready():
 	_mouse_sink_node.set_anchors_and_margins_preset(PRESET_WIDE);
 	_mouse_sink_node.set_drag_forwarding(self);
 	_mouse_sink_node.set_mouse_filter(MOUSE_FILTER_STOP);
+	_mouse_sink_node.connect("mouse_exited", self, "_on_mouse_exited");
 	_move_indicator.set_visible(false);
 	_move_indicator.set_mouse_filter(MOUSE_FILTER_IGNORE);
-	
-	connect("mouse_entered", self, "on_mouse_enter");
-	connect("mouse_exited", self, "on_mouse_exit");
 	
 	if(!inventory_backend):
 		printerr("Inventory Frontend has no Backend associated");
@@ -159,6 +157,7 @@ func _input(event):
 
 func _on_mouse_exited():
 	_move_indicator.set_visible(false);
+	_prev_drag_slot = Vector2(-1, -1);
 	
 func _draw():
 	# Draw inventory grid lines for debug
@@ -233,37 +232,69 @@ func can_drop_data(position, data):
 	# simple calculation to figure out if the mouse has changed slots.
 	var mouse_curr_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
 	if(_prev_drag_slot != mouse_curr_slot):
-		var item = _inventory_backend.get_inventory_item(data["inventory_id"]).get_item();
+		var item           = ItemDatabase.get_item(data["item_id"]);
 		var item_slot_size = item.get_size();
-		
-		var offset_slot = mouse_curr_slot - data["mouse_down_slot_offset"];
+		var offset_slot    = mouse_curr_slot - data["mouse_down_slot_offset"];
 
-		# Draw move indicator
+		# Draw move indicator in the right place
 		_move_indicator.set_visible(true);
 		_move_indicator.set_position(Vector2(offset_slot.x * slot_size, offset_slot.y * slot_size));
 		_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
 		
-		if(!_inventory_backend.can_inventory_item_fit(data["inventory_id"], offset_slot)):
-			_move_indicator.set_frame_color(invalid_move_color);
-		else:
+		var can_item_fit = false;
+		# Inventory item being dragged around the same inventory it originated from
+		if(data.has("source_node") && data["source_node"] == self):
+			can_item_fit = _inventory_backend.can_inventory_item_fit(data["inventory_id"], offset_slot);
+		# Different inventory origin
+		elif(data.has("source") && data["source"] == "inventory"):
+			can_item_fit = _inventory_backend.can_item_fit(data["item_id"], offset_slot);
+			
+		# Set move indicator to different colors depending on whether item can fit
+		# or not.
+		# TODO: Make this more customizable.
+		if(can_item_fit == true):
 			_move_indicator.set_frame_color(valid_move_color);
+		else:
+			_move_indicator.set_frame_color(invalid_move_color);
 		
 	_prev_drag_slot = mouse_curr_slot;
 		
 	return true;
 	
 func drop_data(position, data):
-	if(data["source"] == "inventory"):
-		# Ensure that it comes from the same inventory
-		if(data["source_node"] == self):
-			var new_slot = get_slot_from_position(position) - data["mouse_down_slot_offset"];
+	if(data["source"] == "inventory" && data.has("source_node")):
+		var source_node = data["source_node"];
+		var new_slot = get_slot_from_position(position) - data["mouse_down_slot_offset"];
+		
+		# Same inventory as source
+		if(source_node == self):
 			_inventory_backend.move_item(data["inventory_id"], new_slot);
-			_move_indicator.set_visible(false);
+		else:
+			var item_id = data["item_id"];
+			
+			# Ensure that current slot is valid
+			if(_inventory_backend.can_item_fit(item_id, new_slot)):
+				# Remove from source inventory, then add to the current inventory and
+				# confer with the originating inventory that it was a valid drop.
+				data["backend"].remove_item(data["inventory_id"]);
+				_inventory_backend.add_item_at(item_id, new_slot);
+				source_node.validate_drop(true);
+			else:
+				source_node.validate_drop(false);
+		
+		_move_indicator.set_visible(false);
+		
+func validate_drop(valid = true):
+	if(valid):
+		_dropped_in_drop_zone = true;
+	else:
+		_move_indicator.set_visible(false);
+		_drag_data["mapped_node"].modulate.a = 1;
 	
 # Called when an item is dropped in a drop zone. Return true to accept the drop
 # Return false to deny it.
 func drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, dest):
-	_dropped_in_drop_zone = true;
+	validate_drop(true);
 	
 	if(remove_from_source && accepted):
 		var curr_item_id = dest.get_curr_item_id();
