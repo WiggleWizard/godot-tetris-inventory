@@ -10,7 +10,7 @@ export(NodePath) var inventory_backend = NodePath("./Inventory");
 export(Color) var valid_move_color = Color(0, 1, 0, 0.5);
 export(Color) var invalid_move_color = Color(1, 0, 0, 0.5);
 export(float) var drag_alpha = 0;
-export(PackedScene) var inventory_component_scene = load("res://addons/tetris-inventory/scenes/default_display_item.tscn");
+export(PackedScene) var inventory_component_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
 
 var _inventory_backend = null;
 var _inventory_node_mapping = {};

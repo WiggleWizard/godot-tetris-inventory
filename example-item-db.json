@@ -1,0 +1,34 @@
+{
+    "item_type_script_map": {
+        "weapon": "res://item_scripts/weapon.gd"
+    },
+
+    "items": {
+        "coin_gold": {
+            "name": "Gold",
+            "type": "currency",
+            "slots_in_inventory": { "width": 1, "height": 1 },
+            "inventory_item_texture": "res://textures/inventory_items.png",
+            "clip_pixel_offset": { "x": 0, "y": 0 },
+            "clip_pixel_size": { "width": 100, "height": 100 },
+            "max_stack": 9999,
+            "tp_model": "res://assets/models/items/gold_coin",
+            "weight": 0
+        },
+
+        "silver_sword": {
+            "name": "Silver Sword",
+            "type": "weapon",
+            "slots_in_inventory": { "width": 1, "height": 4 },
+            "inventory_item_texture": "res://textures/inventory_items.png",
+            "clip_pixel_offset": { "x": 300, "y": 0 },
+            "clip_pixel_size": { "width": 100, "height": 400 },
+            "max_stack": 1,
+            "fp_model": "res://assets/models/weapons/silver_sword_fp",
+            "tp_model": "res://assets/models/weapons/silver_sword_tp",
+            "weight": 7,
+
+            "base_damage": 4
+        }
+    }
+}

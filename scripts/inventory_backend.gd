@@ -89,7 +89,7 @@ func set_inventory_size(new_size):
 	
 # Adds an item to the player's inventory at a specific slot, if successful then
 # return true.
-func add_item_at(item_uid, slot):
+func add_item_at(item_uid, slot, amount = 1):
 	if(would_be_in_bounds(item_uid, slot) && can_item_fit(item_uid, slot)):
 		var inventory_item_id = _add_to_inventory_list(item_uid, slot);
 		
@@ -101,7 +101,7 @@ func add_item_at(item_uid, slot):
 	
 # Appends an item to the inventory, attempting to find a spare slot for it.
 # `item_id` should be a valid item ID that's been registered to the global item database.
-func append_item(item_uid):
+func append_item(item_uid, amount = 1):
 	var slot = find_slot_for_item(item_uid);
 	if(slot.x > -1 && slot.y > -1):
 		var inventory_item_id = _add_to_inventory_list(item_uid, slot);

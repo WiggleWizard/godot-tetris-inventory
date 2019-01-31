@@ -47,4 +47,5 @@ outline_width = 1
 [node name="Sprite" type="Sprite" parent="."]
 scale = Vector2( 0.3, 0.3 )
 centered = false
+region_enabled = true
 
