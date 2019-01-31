@@ -124,26 +124,33 @@ func append_item(item_uid, amount = 1):
 		
 	# Stack onto existing items in the inventory as much as possible
 	if(auto_stack && item.get_max_stack_size() > 1):
-		for inventory_item in _inventory:
-			# Only if it's the same item UID and it's not at max stack
-			if(inventory_item.get_item_uid() == item_uid && !inventory_item.at_max_stack()):
-				var stack_size = inventory_item.get_stack_size();
-				var item_stack_remainder = item_max_stack_size - stack_size;
-				
-				# Can't put anymore on this stack
-				if(item_stack_remainder == 0):
+		for y in range(inventory_size.y):
+			for x in range(inventory_size.x):
+				var inventory_item_id = get_id_at_slot(Vector2(x, y));
+				if(inventory_item_id == -1):
 					continue;
+
+				var inventory_item = get_inventory_item(inventory_item_id);
+
+				# Only if it's the same item UID and it's not at max stack
+				if(inventory_item.get_item_uid() == item_uid && !inventory_item.at_max_stack()):
+					var stack_size = inventory_item.get_stack_size();
+					var item_stack_remainder = item_max_stack_size - stack_size;
 					
-				# Calculate amount left after we add to this stack
-				var amount_left = amount - item_stack_remainder;
-				if(amount_left <= 0):
-					set_item_stack_size(inventory_item.get_id(), stack_size + amount);
-					amount_added += amount;
-					amount = 0;
-				else:
-					set_item_stack_size(inventory_item.get_id(), item_max_stack_size);
-					amount_added += item_max_stack_size;
-					amount = amount_left;
+					# Can't put anymore on this stack
+					if(item_stack_remainder == 0):
+						continue;
+						
+					# Calculate amount left after we add to this stack
+					var amount_left = amount - item_stack_remainder;
+					if(amount_left <= 0):
+						set_item_stack_size(inventory_item.get_id(), stack_size + amount);
+						amount_added += amount;
+						amount = 0;
+					else:
+						set_item_stack_size(inventory_item.get_id(), item_max_stack_size);
+						amount_added += item_max_stack_size;
+						amount = amount_left;
 	
 	if(amount > 0):
 		# At this point, we know that all the existing same items have been stacked
