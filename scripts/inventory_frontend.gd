@@ -8,6 +8,7 @@ export(Color) var guide_color = Color(1, 1, 1, 0.1);
 export(int) var slot_size = 30;
 export(NodePath) var inventory_backend = NodePath("./Inventory");
 export(Color) var valid_move_color = Color(0, 1, 0, 0.5);
+export(Color) var stack_move_color = Color(1, 1, 0, 0.5);
 export(Color) var invalid_move_color = Color(1, 0, 0, 0.5);
 export(float) var drag_alpha = 0;
 export(PackedScene) var inventory_component_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
@@ -186,7 +187,7 @@ func _draw():
 
 #==========================================================================
 # Drag Drop
-#==========================================================================	
+#==========================================================================
 	
 # Called when the player starts dragging
 func get_drag_data(position):
@@ -208,7 +209,6 @@ func get_drag_data(position):
 			var drag_modifier = _inventory_backend.DragModifier.DRAG_ALL;
 			if(Input.is_action_pressed("half_stack_modifier")):
 				drag_modifier = _inventory_backend.DragModifier.DRAG_SPLIT_HALF;
-			
 			
 			# Populate the drag data
 			var base_drag_data = _inventory_backend.get_base_drag_data(drag_start_slot, drag_modifier);
@@ -244,60 +244,79 @@ func get_drag_data(position):
 func can_drop_data(position, data):
 	_is_drop_data_valid(data);
 		
-	var source_node = data["source_node"];
 	var mouse_curr_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
 		
-	if(data["source"] == "inventory"):
-		# Since we don't need to run this code every time the mouse moves, we can do some
-		# simple calculation to figure out if the mouse has changed slots.
-		if(_prev_drag_slot != mouse_curr_slot):
-			var item           = ItemDatabase.get_item(data["item_uid"]);
-			var item_slot_size = item.get_size();
-			var offset_slot    = mouse_curr_slot - data["mouse_down_slot_offset"];
-	
-			# Draw move indicator in the right place
-			_move_indicator.set_visible(true);
-			_move_indicator.set_position(Vector2(offset_slot.x * slot_size, offset_slot.y * slot_size));
-			_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
-			
-			var can_item_fit = false;
-			# Inventory item being dragged around the same inventory it originated from
-			if(source_node == self):
-				can_item_fit = _inventory_backend.can_inventory_item_fit(data["inventory_id"], offset_slot);
-			# Different inventory origin
-			elif(data.has("source") && data["source"] == "inventory"):
-				can_item_fit = _inventory_backend.can_item_fit(data["item_uid"], offset_slot);
-				
-			# Set move indicator to different colors depending on whether item can fit
-			# or not.
-			# TODO: Make this more customizable.
-			if(can_item_fit == true):
-				_move_indicator.set_frame_color(valid_move_color);
-			else:
-				_move_indicator.set_frame_color(invalid_move_color);
-			
-	if(data["source"] == "drop_zone"):
-		if(_prev_drag_slot != mouse_curr_slot):
-			var item           = ItemDatabase.get_item(data["item_uid"]);
-			var item_slot_size = item.get_size();
-			
-			# Draw move indicator in the right place
-			_move_indicator.set_visible(true);
-			_move_indicator.set_position(Vector2(mouse_curr_slot.x * slot_size, mouse_curr_slot.y * slot_size));
-			_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
-			
-			var can_item_fit = _inventory_backend.can_item_fit(data["item_uid"], mouse_curr_slot);
-			if(can_item_fit == true):
-				_move_indicator.set_frame_color(valid_move_color);
-			else:
-				_move_indicator.set_frame_color(invalid_move_color);
+	# Since we don't need to run this code every time the mouse moves, we can do some
+	# simple calculation to figure out if the mouse has changed slots.
+	if(_prev_drag_slot != mouse_curr_slot):
+		drag_hover(position, mouse_curr_slot, data);
 	
 	_prev_drag_slot = mouse_curr_slot;
 			
 	return true;
 	
+func drag_hover(position, slot, data):
+	var source_node = data["source_node"];
+	
+	if(data["source"] == "inventory"):
+		var item           = ItemDatabase.get_item(data["item_uid"]);
+		var item_slot_size = item.get_size();
+		var offset_slot    = slot - data["mouse_down_slot_offset"];
+
+		# Draw move indicator in the right place
+		_move_indicator.set_visible(true);
+		_move_indicator.set_position(Vector2(offset_slot.x * slot_size, offset_slot.y * slot_size));
+		_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
+		
+		var can_item_fit = false;
+		# Inventory item being dragged around the same inventory it originated from
+		if(source_node == self):
+			can_item_fit = _inventory_backend.can_inventory_item_fit(data["inventory_id"], offset_slot);
+		# Different inventory origin
+		elif(data.has("source") && data["source"] == "inventory"):
+			can_item_fit = _inventory_backend.can_item_fit(data["item_uid"], offset_slot);
+
+		# Check if we are hovering over an inventory entry that has the same UID
+		var can_stack     = false;
+		var hovering_id   = _inventory_backend.get_id_at_slot(slot);
+		var hovering_item = _inventory_backend.get_inventory_item(hovering_id);
+		if(hovering_item != null):
+			# If hovering over the same item that was picked up
+			if(hovering_id == data["inventory_id"]):
+				# If we aren't dragging the entire stack then allow stack
+				if(hovering_item.get_stack_size() != data["stack_size"]):
+					can_stack = true;
+			elif(hovering_item.get_item_uid() == data["item_uid"] && !hovering_item.at_max_stack()):
+					can_stack = true;
+			
+		# Set move indicator to different colors depending on whether item can fit
+		# or not.
+		# TODO: Make this more customizable.
+		if(can_stack == true):
+			_move_indicator.set_frame_color(stack_move_color);
+		elif(can_item_fit == true):
+			_move_indicator.set_frame_color(valid_move_color);
+		else:
+			_move_indicator.set_frame_color(invalid_move_color);
+			
+	elif(data["source"] == "drop_zone"):
+		var item           = ItemDatabase.get_item(data["item_uid"]);
+		var item_slot_size = item.get_size();
+		
+		# Draw move indicator in the right place
+		_move_indicator.set_visible(true);
+		_move_indicator.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
+		_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
+		
+		var can_item_fit = _inventory_backend.can_item_fit(data["item_uid"], slot);
+		if(can_item_fit == true):
+			_move_indicator.set_frame_color(valid_move_color);
+		else:
+			_move_indicator.set_frame_color(invalid_move_color);
+	
 func drop_data(position, data):
-	_is_drop_data_valid(data);
+	if(!_is_drop_data_valid(data)):
+		return;
 		
 	var source_node = data["source_node"];
 		
@@ -306,7 +325,7 @@ func drop_data(position, data):
 		
 		# Same inventory as source
 		if(source_node == self):
-			_inventory_backend.move_item(data["inventory_id"], new_slot, data["stack_size"]);
+			var amount_remaining = _inventory_backend.move_item(data["inventory_id"], new_slot, data["stack_size"]);
 		else:
 			var item_uid = data["item_uid"];
 			
