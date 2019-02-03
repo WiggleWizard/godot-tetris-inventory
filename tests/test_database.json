@@ -1,0 +1,23 @@
+{
+	"items": {
+		"test_1": {
+			"name": "Test Item 1",
+			"type": "currency",
+			"slots_in_inventory": { "width": 1, "height": 1 },
+			"inventory_item_texture": "res://textures/inventory_items.png",
+			"clip_pixel_offset": { "x": 0, "y": 0 },
+			"clip_pixel_size": { "width": 100, "height": 100 },
+			"max_stack": 50
+		},
+
+		"test_2": {
+			"name": "Test Item 2",
+			"type": "weapon",
+			"slots_in_inventory": { "width": 1, "height": 4 },
+			"inventory_item_texture": "res://textures/inventory_items.png",
+			"clip_pixel_offset": { "x": 300, "y": 0 },
+			"clip_pixel_size": { "width": 100, "height": 400 },
+			"max_stack": 1
+		}
+	}
+}
