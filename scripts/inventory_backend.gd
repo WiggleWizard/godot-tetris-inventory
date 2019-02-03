@@ -46,6 +46,9 @@ class InventoryItem:
 		
 	func at_max_stack():
 		return _stack_size >= get_item().get_max_stack_size();
+
+	func get_max_stack_size():
+		return get_item().get_max_stack_size();
 		
 	func get_item_uid():
 		return _item_uid;
@@ -74,9 +77,25 @@ class InventoryItem:
 	func intersects(inventory_item_b):
 		return inventory_item_b.get_rect().intersects(get_rect());
 		
+	# Removes from stack, returns how much has actually been removed
 	func _remove_from_stack(amount):
-		_stack_size = _stack_size - amount;
-		return _stack_size;
+		var real_amount = clamp(amount, 0, get_max_stack_size());
+		_stack_size = _stack_size - real_amount;
+		return real_amount;
+
+	# Adds to the entry's stack, returns the amount remaining.
+	func add_to_stack(amount):
+		var max_stack_size = get_item().get_max_stack_size();
+
+		# If adding the amount would put the stack size over the limit then
+		# just set the stack size to max.
+		if(_stack_size + amount > max_stack_size):
+			var remaining_amount = amount - _stack_size;
+			_stack_size = max_stack_size;
+			return remaining_amount;
+		else:
+			_stack_size += amount;
+			return 0;
 		
 	func _set_slot(new_slot):
 		_slot = new_slot;
@@ -96,20 +115,24 @@ func set_inventory_size(new_size):
 	
 	# TODO: Truncate inventory
 	
-# Adds an item to the player's inventory at a specific slot, if successful then
-# return true.
+# Adds an item to the player's inventory at a specific slot. If all items were added successfully to the slot
+# then this function returns 0. Any value above 0 is how many items are left over from a stack merge.
 func add_item_at(item_uid, slot, amount = 1):
 	if(ItemDatabase.get_item(item_uid) == null):
-		return false;
+		return amount;
+
+	# If we have the same item UID at the slot, then attempt to stack
+	var inventory_entry = get_inventory_item_at_slot(slot);
+	if(inventory_entry != null):
+		if(inventory_entry.get_item_uid() == item_uid):
+			return add_to_stack(inventory_entry.get_id(), amount);
 		
 	if(would_be_in_bounds(item_uid, slot) && can_item_fit(item_uid, slot)):
 		var inventory_item_id = _add_to_inventory_list(item_uid, slot, amount);
-		
 		emit_signal("item_added", _inventory[inventory_item_id]);
+		return 0;
 		
-		return true;
-		
-	return false;
+	return amount;
 	
 # Appends an item to the inventory, attempting to find a spare slot for it.
 # `item_id` should be a valid item ID that's been registered to the global item database.
@@ -137,7 +160,7 @@ func append_item(item_uid, amount = 1):
 					var stack_size = inventory_item.get_stack_size();
 					var item_stack_remainder = item_max_stack_size - stack_size;
 					
-					# Can't put anymore on this stack
+					# Can't put any more on this stack
 					if(item_stack_remainder == 0):
 						continue;
 						
@@ -189,29 +212,72 @@ func set_item_stack_size(inventory_item_id, new_size):
 	_inventory[inventory_item_id].set_stack_size(new_size);
 	
 	emit_signal("item_stack_size_change", _inventory[inventory_item_id]);
-	
-func remove_from_stack(inventory_item_id, amount):
-	if(!_inventory[inventory_item_id]):
+
+func add_to_stack(stack_id, amount):
+	if(_inventory[stack_id] == null):
 		return 0;
 		
-	_inventory[inventory_item_id]._remove_from_stack(amount);
+	var remaining_amount = _inventory[stack_id].add_to_stack(amount);
 	
-	return _inventory[inventory_item_id].get_stack_size();
+	emit_signal("item_stack_size_change", _inventory[stack_id]);
+
+	return remaining_amount;
 	
-# Moves inventory item from where it is currently to `slot`
-func move_item(inventory_item_id, to_slot, amount = -1):
-	if(can_inventory_item_fit(inventory_item_id, to_slot)):
+# Removes `amount` from stack. Will remove from inventory if removing more than
+func remove_from_stack(stack_id, amount):
+	if(!_inventory[stack_id]):
+		return 0;
+		
+	_inventory[stack_id]._remove_from_stack(amount);
+
+	# If we have removed everything from the stack then remove it from the inventory
+	# entirely.
+	if(_inventory[stack_id].get_stack_size() <= 0):
+		remove_item(stack_id);
+		return 0;
+	else:
+		emit_signal("item_stack_size_change", _inventory[stack_id]);
+	
+	return _inventory[stack_id].get_stack_size();
+	
+# Moves inventory item from where it is currently to `slot`. Can split a stack by specifying the amount
+# that is required to move.
+func move_item(stack_id, to_slot, amount = -1):
+	var from_stack = get_inventory_item(stack_id);
+	var to_stack   = get_inventory_item_at_slot(to_slot); # Could be null if moving to an empty slot
+
+	# If amount is left default then it means we should move the entire stack
+	if(amount == -1):
+		amount = from_stack.get_stack_size();
+
+	# Stops the amount to be moved from being over the size of the stack
+	amount = clamp(amount, 0, from_stack.get_stack_size());
+
+	# If destination slot has the same item UID then we stack as much as possible
+	# and leave the original inventory entry where it is if we surpass the stack limit.
+	if(to_stack && to_stack.get_item_uid() == _inventory[stack_id].get_item_uid()):
+		if(!to_stack.at_max_stack()):
+			var amount_remaining = add_to_stack(to_stack.get_id(), amount);
+			var amount_transferred = amount - amount_remaining;
+			remove_from_stack(stack_id, amount_transferred);
+
+			return amount_remaining;
+		else:
+			pass;
+	elif(can_inventory_item_fit(stack_id, to_slot)):
 		# Move the whole stack
-		if(amount == -1 || amount == _inventory[inventory_item_id].get_stack_size()):
-			_inventory[inventory_item_id]._set_slot(to_slot);
-			emit_signal("item_moved", _inventory[inventory_item_id]);
+		if(amount == -1 || amount == _inventory[stack_id].get_stack_size()):
+			_inventory[stack_id]._set_slot(to_slot);
+			emit_signal("item_moved", _inventory[stack_id]);
 		# We only want to move specified amount off the stack
 		else:
-			var inventory_item = _inventory[inventory_item_id];
-			remove_from_stack(inventory_item_id, amount);
+			var inventory_item = _inventory[stack_id];
+			remove_from_stack(stack_id, amount);
 			add_item_at(inventory_item.get_item_uid(), to_slot, amount);
 	else:
-		emit_signal("item_moved", _inventory[inventory_item_id]);
+		emit_signal("item_moved", _inventory[stack_id]);
+
+	return amount;
 	
 # Removes an item at specific ID. This ID can be fetched by using
 # get_id_at_slot().
@@ -269,7 +335,12 @@ func can_inventory_item_fit(inventory_item_id, slot):
 	elif(sweep_result.size() == 1 && sweep_result[0] == inventory_item_id):
 		return true;
 	return false;
-			
+	
+func clear_inventory():
+	# TODO: Cleaner cleanup; send corresponding signal out to inform listeners of 
+	#       each stack that was removed.
+	_inventory.clear();
+
 
 #==========================================================================
 # Private
@@ -301,6 +372,13 @@ func get_id_at_slot(slot):
 				return i;
 				
 	return -1;
+
+func get_inventory_item_at_slot(slot):
+	var id = get_id_at_slot(slot);
+	if(id == -1):
+		return null;
+
+	return _inventory[id];
 	
 func get_inventory_item(inventory_item_id):
 	if(inventory_item_id < 0 || inventory_item_id >= _inventory.size()):
