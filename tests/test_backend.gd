@@ -28,6 +28,7 @@ func _ready():
 				print("[+] " + test_state["test"] + " [PASSED]");
 			else:
 				print("[!] " + test_state["test"] + " [FAILED]");
+				print("/!\\ Deprecated");
 				break;
 		
 	if(test_pass):

@@ -271,7 +271,7 @@ func drag_hover(position, slot, data):
 		var can_item_fit = false;
 		# Inventory item being dragged around the same inventory it originated from
 		if(source_node == self):
-			can_item_fit = _inventory_backend.can_inventory_item_fit(data["inventory_id"], offset_slot);
+			can_item_fit = _inventory_backend.can_stack_fit(data["stack_id"], offset_slot);
 		# Different inventory origin
 		elif(data.has("source") && data["source"] == "inventory"):
 			can_item_fit = _inventory_backend.can_item_fit(data["item_uid"], offset_slot);
@@ -282,7 +282,7 @@ func drag_hover(position, slot, data):
 		var hovering_item = _inventory_backend.get_inventory_item(hovering_id);
 		if(hovering_item != null):
 			# If hovering over the same item that was picked up
-			if(hovering_id == data["inventory_id"]):
+			if(hovering_id == data["stack_id"]):
 				# If we aren't dragging the entire stack then allow stack
 				if(hovering_item.get_stack_size() != data["stack_size"]):
 					can_stack = true;
@@ -325,7 +325,9 @@ func drop_data(position, data):
 		
 		# Same inventory as source
 		if(source_node == self):
-			var amount_remaining = _inventory_backend.move_item(data["inventory_id"], new_slot, data["stack_size"]);
+			var amount_remaining = _inventory_backend.move_item(data["stack_id"], new_slot, data["stack_size"]);
+			if(amount_remaining > 0):
+				data["mapped_node"].modulate.a = 1;
 		else:
 			var item_uid = data["item_uid"];
 			
@@ -333,7 +335,7 @@ func drop_data(position, data):
 			if(_inventory_backend.can_item_fit(item_uid, new_slot)):
 				# Remove from source inventory, then add to the current inventory and
 				# confer with the originating inventory that it was a valid drop.
-				data["backend"].remove_item(data["inventory_id"]);
+				data["backend"].remove_item(data["stack_id"]);
 				_inventory_backend.add_item_at(item_uid, new_slot, data["stack_size"]);
 				source_node.validate_drop(true);
 			else:

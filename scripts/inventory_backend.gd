@@ -149,15 +149,15 @@ func append_item(item_uid, amount = 1):
 	if(auto_stack && item.get_max_stack_size() > 1):
 		for y in range(inventory_size.y):
 			for x in range(inventory_size.x):
-				var inventory_item_id = get_id_at_slot(Vector2(x, y));
-				if(inventory_item_id == -1):
+				var stack_id = get_id_at_slot(Vector2(x, y));
+				if(stack_id == -1):
 					continue;
 
-				var inventory_item = get_inventory_item(inventory_item_id);
+				var stack = get_stack_from_id(stack_id);
 
 				# Only if it's the same item UID and it's not at max stack
-				if(inventory_item.get_item_uid() == item_uid && !inventory_item.at_max_stack()):
-					var stack_size = inventory_item.get_stack_size();
+				if(stack.get_item_uid() == item_uid && !stack.at_max_stack()):
+					var stack_size = stack.get_stack_size();
 					var item_stack_remainder = item_max_stack_size - stack_size;
 					
 					# Can't put any more on this stack
@@ -167,11 +167,11 @@ func append_item(item_uid, amount = 1):
 					# Calculate amount left after we add to this stack
 					var amount_left = amount - item_stack_remainder;
 					if(amount_left <= 0):
-						set_item_stack_size(inventory_item.get_id(), stack_size + amount);
+						set_item_stack_size(stack.get_id(), stack_size + amount);
 						amount_added += amount;
 						amount = 0;
 					else:
-						set_item_stack_size(inventory_item.get_id(), item_max_stack_size);
+						set_item_stack_size(stack.get_id(), item_max_stack_size);
 						amount_added += item_max_stack_size;
 						amount = amount_left;
 	
@@ -182,19 +182,19 @@ func append_item(item_uid, amount = 1):
 		while true:
 			var slot = find_slot_for_item(item_uid);
 			if(slot.x > -1 && slot.y > -1):
-				var inventory_item_id = -1;
+				var stack_id = -1;
 				
 				# Last of the stacks
 				if(amount_left < item.get_max_stack_size()):
-					inventory_item_id = _add_to_inventory_list(item_uid, slot, amount_left);
+					stack_id = _add_to_inventory_list(item_uid, slot, amount_left);
 					amount_added += amount_left;
 					amount_left = 0;
 				else:
-					inventory_item_id = _add_to_inventory_list(item_uid, slot, item.get_max_stack_size());
+					stack_id = _add_to_inventory_list(item_uid, slot, item.get_max_stack_size());
 					amount_added += item.get_max_stack_size();
 					amount_left -= item.get_max_stack_size();
 					
-				emit_signal("item_added", _inventory[inventory_item_id]);
+				emit_signal("item_added", _inventory[stack_id]);
 				
 				if(amount_left <= 0):
 					break;
@@ -243,7 +243,7 @@ func remove_from_stack(stack_id, amount):
 # Moves inventory item from where it is currently to `slot`. Can split a stack by specifying the amount
 # that is required to move.
 func move_item(stack_id, to_slot, amount = -1):
-	var from_stack = get_inventory_item(stack_id);
+	var from_stack = get_stack_from_id(stack_id);
 	var to_stack   = get_inventory_item_at_slot(to_slot); # Could be null if moving to an empty slot
 
 	# If amount is left default then it means we should move the entire stack
@@ -252,6 +252,10 @@ func move_item(stack_id, to_slot, amount = -1):
 
 	# Stops the amount to be moved from being over the size of the stack
 	amount = clamp(amount, 0, from_stack.get_stack_size());
+
+	# Moving from and to the exact same slot then return same amount
+	if(from_stack.get_slot() == to_slot):
+		return amount;
 
 	# If destination slot has the same item UID then we stack as much as possible
 	# and leave the original inventory entry where it is if we surpass the stack limit.
@@ -263,8 +267,8 @@ func move_item(stack_id, to_slot, amount = -1):
 
 			return amount_remaining;
 		else:
-			pass;
-	elif(can_inventory_item_fit(stack_id, to_slot)):
+			emit_signal("item_stack_size_change", from_stack);
+	elif(can_stack_fit(stack_id, to_slot, [stack_id])):
 		# Move the whole stack
 		if(amount == -1 || amount == _inventory[stack_id].get_stack_size()):
 			_inventory[stack_id]._set_slot(to_slot);
@@ -275,6 +279,8 @@ func move_item(stack_id, to_slot, amount = -1):
 			remove_from_stack(stack_id, amount);
 			add_item_at(inventory_item.get_item_uid(), to_slot, amount);
 	else:
+		# Little cheat here, the item hasn't really moved but this triggers
+		# the frontend to update at least.
 		emit_signal("item_moved", _inventory[stack_id]);
 
 	return amount;
@@ -320,19 +326,19 @@ func can_item_fit(item_uid, slot, mask = []):
 	
 # Checks if an inventory item can fit into a specific slot. This function is mainly used for
 # moving items that are already in the inventory around.
-func can_inventory_item_fit(inventory_item_id, slot):
-	var item_uid = _inventory[inventory_item_id].get_item_uid();
+func can_stack_fit(stack_id, slot, mask = []):
+	var item_uid = _inventory[stack_id].get_item_uid();
 	
 	if(!would_be_in_bounds(item_uid, slot)):
 		return false;
 		
-	var sweep_result = sweep(item_uid, slot);
+	var sweep_result = sweep(item_uid, slot, mask);
 	
 	# Not colliding with anything
 	if(sweep_result.size() == 0):
 		return true;
 	# Colliding with only itself
-	elif(sweep_result.size() == 1 && sweep_result[0] == inventory_item_id):
+	elif(sweep_result.size() == 1 && sweep_result[0] == stack_id):
 		return true;
 	return false;
 	
@@ -381,16 +387,23 @@ func get_inventory_item_at_slot(slot):
 	return _inventory[id];
 	
 func get_inventory_item(inventory_item_id):
+	#print("/!\\ Deprecated");
 	if(inventory_item_id < 0 || inventory_item_id >= _inventory.size()):
 		return null;
 		
 	return _inventory[inventory_item_id];
+
+func get_stack_from_id(stack_id):
+	if(stack_id < 0 || stack_id >= _inventory.size()):
+		return null;
+		
+	return _inventory[stack_id];
 	
 # Returns all items in the player's inventory.
 func get_all_inventory_items():
 	return _inventory;
 	
-# Returns an array of collided inventory item IDs if this item were to be put in `slot`.
+# Returns an array of collided stack IDs if this item were to be put in `slot`.
 func sweep(item_uid, slot, mask = []):
 	var collision_list = [];
 	
@@ -404,7 +417,7 @@ func sweep(item_uid, slot, mask = []):
 		if(_inventory[i] == null):
 			continue;
 			
-		# Ignore inventory IDs that are in the mask list
+		# Ignore stack IDs that are in the mask list
 		if(mask.find(i) > -1):
 			continue;
 			
@@ -416,24 +429,24 @@ func sweep(item_uid, slot, mask = []):
 	
 # Call this when the player begins a drag from the inventory.
 func get_base_drag_data(slot, drag_modifier = DragModifier.DRAG_ALL):
-	var inventory_id = get_id_at_slot(slot);
-	var inventory_item = get_inventory_item(inventory_id);
+	var stack_id = get_id_at_slot(slot);
+	var stack    = get_stack_from_id(stack_id);
 	
-	var stack_size = inventory_item.get_stack_size();
+	var stack_size = stack.get_stack_size();
 	if(drag_modifier == DragModifier.DRAG_SPLIT_HALF):
 		stack_size = ceil(stack_size / 2);
 	
 	# If it's a legit item
-	if(is_valid_id(inventory_id)):
-		var mouse_down_slot_offset = slot - _inventory[inventory_id].get_slot();
+	if(is_valid_id(stack_id)):
+		var mouse_down_slot_offset = slot - _inventory[stack_id].get_slot();
 		return {
-			"source": "inventory",
-			"inventory_id": inventory_id,
-			"item_uid": inventory_item.get_item_uid(),
-			"slot": slot,
-			"stack_size": stack_size,
+			"source":                 "inventory",
+			"stack_id":               stack_id,
+			"item_uid":               stack.get_item_uid(),
+			"slot":                   slot,
+			"stack_size":             stack_size,
 			"mouse_down_slot_offset": mouse_down_slot_offset,
-			"backend": self
+			"backend":                self
 		};
 		
 	return null;
