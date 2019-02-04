@@ -242,48 +242,78 @@ func remove_from_stack(stack_id, amount):
 	
 # Moves inventory item from where it is currently to `slot`. Can split a stack by specifying the amount
 # that is required to move.
-func move_item(stack_id, to_slot, amount = -1):
+func move_item(stack_id, to_slot, amount = -1, debug = false):
 	var from_stack = get_stack_from_id(stack_id);
 	var to_stack   = get_inventory_item_at_slot(to_slot); # Could be null if moving to an empty slot
+	var item_uid   = from_stack.get_item_uid();
 
 	# If amount is left default then it means we should move the entire stack
 	if(amount == -1):
 		amount = from_stack.get_stack_size();
+
+	var result = {
+		"remaining": from_stack.get_stack_size(),
+		"moved": 0
+	};
 
 	# Stops the amount to be moved from being over the size of the stack
 	amount = clamp(amount, 0, from_stack.get_stack_size());
 
 	# Moving from and to the exact same slot then return same amount
 	if(from_stack.get_slot() == to_slot):
-		return amount;
-
-	# If destination slot has the same item UID then we stack as much as possible
-	# and leave the original inventory entry where it is if we surpass the stack limit.
-	if(to_stack && to_stack.get_item_uid() == _inventory[stack_id].get_item_uid()):
-		if(!to_stack.at_max_stack()):
-			var amount_remaining = add_to_stack(to_stack.get_id(), amount);
-			var amount_transferred = amount - amount_remaining;
-			remove_from_stack(stack_id, amount_transferred);
-
-			return amount_remaining;
-		else:
-			emit_signal("item_stack_size_change", from_stack);
-	elif(can_stack_fit(stack_id, to_slot, [stack_id])):
-		# Move the whole stack
-		if(amount == -1 || amount == _inventory[stack_id].get_stack_size()):
-			_inventory[stack_id]._set_slot(to_slot);
-			emit_signal("item_moved", _inventory[stack_id]);
-		# We only want to move specified amount off the stack
-		else:
-			var inventory_item = _inventory[stack_id];
-			remove_from_stack(stack_id, amount);
-			add_item_at(inventory_item.get_item_uid(), to_slot, amount);
-	else:
-		# Little cheat here, the item hasn't really moved but this triggers
-		# the frontend to update at least.
 		emit_signal("item_moved", _inventory[stack_id]);
 
-	return amount;
+		result["moved"]     = amount;
+		result["remaining"] = 0;
+
+		return result;
+
+	var sweep_result = sweep(item_uid, to_slot);
+
+	# If we hit nothing, then we are free to move the amount into the slot
+	if(sweep_result.size() == 0):
+		if(amount == from_stack.get_stack_size()):
+			from_stack._set_slot(to_slot);
+			emit_signal("item_moved", _inventory[stack_id]);
+
+			result["moved"]     = amount;
+			result["remaining"] = 0;
+		# We only want to move specified amount off the stack
+		else:
+			
+			remove_from_stack(stack_id, amount);
+			add_item_at(from_stack.get_item_uid(), to_slot, amount);
+
+			result["moved"]     = amount;
+			result["remaining"] = from_stack.get_stack_size();
+	# If we hit the same stack, and we are moving the whole stack then it's a valid placement
+	elif(amount == from_stack.get_stack_size() && sweep_result.size() == 1 && sweep_result[0] == stack_id):
+		_inventory[stack_id]._set_slot(to_slot);
+		emit_signal("item_moved", _inventory[stack_id]);
+
+		result["moved"]     = amount;
+		result["remaining"] = 0;
+	# Attempted move ontop of another stack with the same item UID
+	elif(sweep_result.size() == 1):
+		var hit_stack = get_stack_from_id(sweep_result[0]);
+		if(hit_stack.get_item_uid() == item_uid):
+			if(!to_stack.at_max_stack()):
+				var amount_remaining = add_to_stack(to_stack.get_id(), amount);
+				var amount_transferred = amount - amount_remaining;
+				remove_from_stack(stack_id, amount_transferred);
+
+				result["moved"]     = amount;
+				result["remaining"] = from_stack.get_stack_size();
+
+				return result;
+
+			# Destination at max stack
+			emit_signal("item_stack_size_change", from_stack);
+
+			result["moved"]     = 0;
+			result["remaining"] = from_stack.get_stack_size();
+
+	return result;
 	
 # Removes an item at specific ID. This ID can be fetched by using
 # get_id_at_slot().
@@ -340,6 +370,7 @@ func can_stack_fit(stack_id, slot, mask = []):
 	# Colliding with only itself
 	elif(sweep_result.size() == 1 && sweep_result[0] == stack_id):
 		return true;
+
 	return false;
 	
 func clear_inventory():

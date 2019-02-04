@@ -325,8 +325,8 @@ func drop_data(position, data):
 		
 		# Same inventory as source
 		if(source_node == self):
-			var amount_remaining = _inventory_backend.move_item(data["stack_id"], new_slot, data["stack_size"]);
-			if(amount_remaining > 0):
+			var move_result = _inventory_backend.move_item(data["stack_id"], new_slot, data["stack_size"]);
+			if(move_result["remaining"] > 0):
 				data["mapped_node"].modulate.a = 1;
 		else:
 			var item_uid = data["item_uid"];
@@ -351,7 +351,7 @@ func drop_data(position, data):
 		source_node.drop_fw(self);
 	
 # Curtesy call from controls that have had the item from this Node dropped into.	
-func drop_fw(from_control):
+func drop(from_control, kickback_amount):
 	#print(from_control);
 	pass;
 		
