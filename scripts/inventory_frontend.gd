@@ -22,10 +22,11 @@ var _move_indicator  = null;
 
 
 var _drag_data = null;
-var _dragging_from_inventory = false;
 var _dropped_in_drop_zone = false;
-var _process_drop_next_frame = false;
 var _prev_drag_slot = Vector2(-1, -1);
+
+var _dropped_internally = false;
+var _drop_fw = false;
 
 
 #==========================================================================
@@ -96,7 +97,6 @@ func item_removed(inventory_item):
 #==========================================================================	
 	
 func _ready():
-	set_process_input(false);
 	set_process(false);
 	
 	_container       = Container.new();
@@ -131,32 +131,22 @@ func _ready():
 		_inventory_backend.connect("item_moved", self, "item_moved");
 		_inventory_backend.connect("item_removed", self, "item_removed");
 		
+
 func _process(delta):
-	if(_process_drop_next_frame):
-		if(!_dropped_in_drop_zone):
+	var viewport = get_viewport();
+	if(!viewport.gui_is_dragging()):
+		if(_dropped_internally == true):
+			print("Dropped internally");
+		elif(_drop_fw == true):
+			print("Dropped externally");
+		else:
+			print("Gutter drop");
 			gutter_drop();
 			
-		# Reset drop related variables
-		_process_drop_next_frame = false;
-		_dragging_from_inventory = false;
-		_dropped_in_drop_zone    = false;
-		_drag_data               = null;
+		_dropped_internally = false;
+		_drop_fw = false;
 		
 		set_process(false);
-	
-func _input(event):
-	if(event is InputEventMouseButton):
-		var viewport = get_viewport();
-	
-		# Mouse events occur first before drag events
-		if(event.button_index == BUTTON_LEFT && !event.is_pressed() && viewport.gui_is_dragging()):
-			# If the cursor is positioned outside the inventory space
-			if(_dragging_from_inventory && !get_rect().has_point(event.position)):
-				set_process_input(false);
-				
-				# Process the drop data on the next frame
-				_process_drop_next_frame = true;
-				set_process(true);
 
 func _on_mouse_exited():
 	_move_indicator.set_visible(false);
@@ -191,9 +181,8 @@ func _draw():
 	
 # Called when the player starts dragging
 func get_drag_data(position):
-	_dragging_from_inventory = true;
-	set_process_input(true);
-	
+	set_process(true);
+
 	# Figure out which slot the player started dragging
 	var drag_start_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
 	
@@ -287,7 +276,7 @@ func drag_hover(position, slot, data):
 				if(hovering_item.get_stack_size() != data["stack_size"]):
 					can_stack = true;
 			elif(hovering_item.get_item_uid() == data["item_uid"] && !hovering_item.at_max_stack()):
-					can_stack = true;
+				can_stack = true;
 			
 		# Set move indicator to different colors depending on whether item can fit
 		# or not.
@@ -313,7 +302,7 @@ func drag_hover(position, slot, data):
 			_move_indicator.set_frame_color(valid_move_color);
 		else:
 			_move_indicator.set_frame_color(invalid_move_color);
-	
+
 func drop_data(position, data):
 	if(!_is_drop_data_valid(data)):
 		return;
@@ -341,20 +330,22 @@ func drop_data(position, data):
 			else:
 				source_node.validate_drop(false);
 		
-		_move_indicator.set_visible(false);
+		_move_indicator.set_visible(false); 
 		
 	elif(data["source"] == "drop_zone"):
 		print(data["item_uid"]);
 	
+	# If the source of the drag was internal then set flag
+	if(source_node == self):
+		_dropped_internally = true;
 	# Curtesy call source node
-	if(source_node.has_method("drop_fw")):
+	elif(source_node != self && source_node.has_method("drop_fw")):
 		source_node.drop_fw(self);
 	
 # Curtesy call from controls that have had the item from this Node dropped into.	
-func drop(from_control, kickback_amount):
-	#print(from_control);
-	pass;
-		
+func drop_fw(from_control):
+	_drop_fw = true;
+
 # Callback for when a drop is "acknowledged" from a third party node
 func validate_drop(valid = true):
 	if(valid):

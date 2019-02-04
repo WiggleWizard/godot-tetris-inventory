@@ -131,7 +131,7 @@ func drop_data_fw(position, data, from_control):
 		# If from inventory
 		if(source_node && data["source"] == "inventory"):
 			# Inform the inventory that we have dropped here
-			var proceed_with_drop = source_node.drop_zone_drop(remove_from_source, allowed, data["inventory_id"], self);
+			var proceed_with_drop = source_node.drop_zone_drop(remove_from_source, allowed, data["stack_id"], self);
 			
 			if(allowed && proceed_with_drop):
 				# Deal with adding the item in to the drop zone memory
@@ -144,9 +144,9 @@ func drop_data_fw(position, data, from_control):
 				
 				dropped_item_from_inventory(_item_uid);
 			
-		# Otherwise just notify the source
-		elif(source_node && source_node.has_method("_on_drop_zone_drop")):
-			source_node._on_drop_zone_drop(remove_from_source, allowed);
+	# Notify the source
+	if(source_node.has_method("drop_fw")):
+		source_node.drop_fw(self);
 		
 # Curtesy call from controls that have had the item from this Node dropped into.
 func drop_fw(from_control):
