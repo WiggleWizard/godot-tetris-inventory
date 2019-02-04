@@ -312,7 +312,10 @@ func move_item(stack_id, to_slot, amount = -1, debug = false):
 
 			result["moved"]     = 0;
 			result["remaining"] = from_stack.get_stack_size();
-
+		else:
+			emit_signal("item_moved", _inventory[stack_id]);
+			emit_signal("item_stack_size_change", from_stack);
+			
 	return result;
 	
 # Removes an item at specific ID. This ID can be fetched by using
@@ -378,6 +381,31 @@ func clear_inventory():
 	#       each stack that was removed.
 	_inventory.clear();
 
+func transfer(from_backend, amount, stack_id = 0, to_slot = Vector2(-1, -1)):
+	# If transfer requested from internal backend then refer to moving item
+	if(from_backend == self):
+		return move_item(stack_id, to_slot, amount);
+
+	var fetch_result = from_backend.fetch_stack(amount, stack_id);
+
+	if(fetch_result["item_uid"] != ""):
+		add_item_at(fetch_result["item_uid"], to_slot, amount);
+
+# Usually called from another backend instance to request parts or all of a specific stack.
+# Take care as this is a destructive call.
+func fetch_stack(amount, stack_id = 0):
+	var stack = get_stack_from_id(stack_id);
+
+	var fetch_result = {
+		"item_uid": "",
+		"amount": 0
+	};
+
+	if(stack && stack.get_stack_size() >= amount):
+		remove_from_stack(stack_id, amount);
+		fetch_result["item_uid"] = stack.get_item_uid();
+
+	return fetch_result;
 
 #==========================================================================
 # Private
@@ -461,26 +489,24 @@ func sweep(item_uid, slot, mask = []):
 # Call this when the player begins a drag from the inventory.
 func get_base_drag_data(slot, drag_modifier = DragModifier.DRAG_ALL):
 	var stack_id = get_id_at_slot(slot);
-	var stack    = get_stack_from_id(stack_id);
+
+	if(!is_valid_id(stack_id)):
+		return null;
+
+	var stack = get_stack_from_id(stack_id);
 	
 	var stack_size = stack.get_stack_size();
 	if(drag_modifier == DragModifier.DRAG_SPLIT_HALF):
 		stack_size = ceil(stack_size / 2);
 	
-	# If it's a legit item
-	if(is_valid_id(stack_id)):
-		var mouse_down_slot_offset = slot - _inventory[stack_id].get_slot();
-		return {
-			"source":                 "inventory",
-			"stack_id":               stack_id,
-			"item_uid":               stack.get_item_uid(),
-			"slot":                   slot,
-			"stack_size":             stack_size,
-			"mouse_down_slot_offset": mouse_down_slot_offset,
-			"backend":                self
-		};
-		
-	return null;
+	return {
+		"source":     "inventory",
+		"stack_id":   stack_id,
+		"item_uid":   stack.get_item_uid(),
+		"slot":       slot,
+		"stack_size": stack_size,
+		"backend":    self
+	};
 
 
 #==========================================================================

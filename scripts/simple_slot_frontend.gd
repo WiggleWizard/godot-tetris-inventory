@@ -3,6 +3,7 @@ extends Control
 class_name ItemDropZone
 
 
+export(NodePath) var backend;
 export(bool) var remove_from_source = false;
 export(bool) var allow_drop_swapping = true;
 export(Array, String) var inclusive_filter = [];
@@ -11,6 +12,8 @@ export(Vector2) var drag_slot_size = Vector2(64, 64);
 
 signal item_dropped;
 signal item_removed;
+
+var _backend = null;
 
 var _item_uid   = "";
 var _stack_size = 1;
@@ -64,6 +67,9 @@ func _ready():
 	_container.set_mouse_filter(MOUSE_FILTER_IGNORE);
 	_mouse_sink_node.set_drag_forwarding(self);
 	_mouse_sink_node.set_anchors_and_margins_preset(Control.PRESET_WIDE);
+
+	if(backend):
+		_backend = get_node(backend);
 	
 func _process(delta):
 	var viewport = get_viewport();
@@ -90,12 +96,12 @@ func _process(delta):
 
 func get_drag_data_fw(position, from_control):
 	# Don't allow the user to drag when nothing in here
-	if(_item_uid == ""):
+	if(!_backend.has_valid_item()):
 		return null;
 		
 	set_process(true);
 	
-	var item = ItemDatabase.get_item(_item_uid);
+	var item = ItemDatabase.get_item(_backend.get_item_uid());
 	var size = item.get_size();
 	
 	# Create an outer for the preview so we can have an offset.
@@ -108,45 +114,24 @@ func get_drag_data_fw(position, from_control):
 	inner.set_position(-position);
 
 	# Populate the drag data
-	return {
-		"source_node": self,
-		"source": "drop_zone",
-		"item_uid": _item_uid
-	};
+	var base_drag_data = _backend.get_base_drag_data();
+	base_drag_data["frontend"] = self;
+	return base_drag_data;
 
 func can_drop_data_fw(position, data, from_control):
-	if(data.has("item_uid")):
-		var item_uid = data["item_uid"];
-		drag_hover(_is_item_allowed(item_uid), data);
-	
+	# TODO
 	return true;
 	
 func drop_data_fw(position, data, from_control):
 	_dropped_internally = true;
-	var source_node = data["source_node"];
 	
-	if(data.has("item_uid")):
-		var allowed = _is_item_allowed(data["item_uid"]);
-		
-		# If from inventory
-		if(source_node && data["source"] == "inventory"):
-			# Inform the inventory that we have dropped here
-			var proceed_with_drop = source_node.drop_zone_drop(remove_from_source, allowed, data["stack_id"], self);
-			
-			if(allowed && proceed_with_drop):
-				# Deal with adding the item in to the drop zone memory
-				_item_uid = data["item_uid"];
-				
-				# Setup and add the display node
-				var new_scene = display_scene.instance();
-				new_scene.set_display_data(_item_uid, "drop_zone");
-				_container.add_child(new_scene);
-				
-				dropped_item_from_inventory(_item_uid);
-			
+	# Request a transfer from the backend
+	_backend.transfer(data["backend"], data["stack_size"], data["stack_id"]);
+	
 	# Notify the source
-	if(source_node.has_method("drop_fw")):
-		source_node.drop_fw(self);
+	var frontend = data["frontend"];
+	if(frontend && frontend.has_method("drop_fw")):
+		frontend.drop_fw(self);
 		
 # Curtesy call from controls that have had the item from this Node dropped into.
 func drop_fw(from_control):
@@ -169,19 +154,3 @@ func _is_drop_data_valid(data):
 		return false;
 		
 	return true;
-
-# Checks whether this item ID is allowed in this drop zone. Check is done by
-# item type.
-func _is_item_allowed(item_uid):
-	if(!allow_drop_swapping && get_curr_item_uid() > -1):
-		return false;
-	
-	var is_allowed = false;
-	if(inclusive_filter.size() > 0):
-		var item = ItemDatabase.get_item(item_uid);
-		if(inclusive_filter.find(item.get_type()) > -1):
-			is_allowed = true;
-	else:
-		is_allowed = true;
-		
-	return is_allowed;
