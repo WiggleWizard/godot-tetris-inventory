@@ -50,6 +50,10 @@ func transfer(from_backend, item_uid, transfer_data):
 	if(!is_item_allowed(item_uid)):
 		return false;
 		
+	transfer_data["item_uid"] = _item_uid;
+	transfer_data["strategy"] = InventoryBackend.TransferStrategy.STRAT_ADD;
+	if(_item_uid != ""):
+		transfer_data["strategy"] = InventoryBackend.TransferStrategy.STRAT_SWAP;
 	var validate_result = from_backend.validate_transfer(1, item_uid, transfer_data);
 	if(validate_result == true):
 		from_backend.handle_transfer(1, transfer_data);

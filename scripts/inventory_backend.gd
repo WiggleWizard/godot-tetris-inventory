@@ -35,6 +35,11 @@ enum DryRunStrategy {
 	STRAT_MERGE
 }
 
+enum TransferStrategy {
+	STRAT_ADD,
+	STRAT_SWAP
+}
+
 
 # Special class to represent an inventory item
 class InventoryItem:
@@ -449,13 +454,25 @@ func validate_transfer(amount, item_uid, transfer_data):
 		return false;
 
 	var stack = get_stack_from_id(transfer_data["stack_id"]);
-	if(stack.get_stack_size() >= amount):
-		return true;
-	return false;
+	if(amount > stack.get_stack_size()):
+		return false;
+
+	if(transfer_data.has("strategy") && transfer_data["strategy"] == TransferStrategy.STRAT_SWAP && transfer_data.has("item_uid")):
+		# Look for a space to put this item
+		var slot = find_slot_for_item(transfer_data["item_uid"]);
+		if(slot == Vector2(-1, -1)):
+			return false;
+		else:
+			return true;
+	
+	return true;
 
 func handle_transfer(amount, transfer_data):
 	if(transfer_data.has("stack_id")):
 		remove_from_stack(transfer_data["stack_id"], amount);
+
+		if(transfer_data.has("strategy") && transfer_data["strategy"] == TransferStrategy.STRAT_SWAP && transfer_data.has("item_uid")):
+			append_item(transfer_data["item_uid"], 1);
 
 
 #==========================================================================

@@ -139,11 +139,10 @@ func _process(delta):
 	var viewport = get_viewport();
 	if(!viewport.gui_is_dragging()):
 		if(_dropped_internally == true):
-			print("Dropped internally");
+			pass;
 		elif(_drop_fw == true):
-			print("Dropped externally");
+			pass;
 		else:
-			print("Gutter drop");
 			gutter_drop();
 			
 		_dropped_internally = false;
