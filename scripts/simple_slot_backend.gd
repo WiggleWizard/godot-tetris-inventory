@@ -47,12 +47,17 @@ func is_item_allowed(item_uid):
 	return is_allowed;
 
 func transfer(from_backend, item_uid, transfer_data):
+	if(!is_item_allowed(item_uid)):
+		return false;
+		
 	var validate_result = from_backend.validate_transfer(1, item_uid, transfer_data);
 	if(validate_result == true):
 		from_backend.handle_transfer(1, transfer_data);
 
 		_item_uid = item_uid;
-		emit_signal("item_changed");
+		emit_signal("item_changed", item_uid);
+		
+	return true;
 
 func validate_transfer(amount, item_uid, transfer_data):
 	if(amount == 1 && _item_uid == item_uid):
@@ -61,6 +66,7 @@ func validate_transfer(amount, item_uid, transfer_data):
 
 func handle_transfer(amount, transfer_data):
 	_item_uid = "";
+	emit_signal("item_changed", "");
 
 func get_base_drag_data():
 	if(!has_valid_item()):

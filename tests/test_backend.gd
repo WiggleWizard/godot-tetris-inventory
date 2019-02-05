@@ -32,7 +32,6 @@ func _ready():
 				print("[+] " + test_state["test"] + " [PASSED]");
 			else:
 				print("[!] " + test_state["test"] + " [FAILED]");
-				print("/!\\ Deprecated");
 				break;
 		
 	if(test_pass):
@@ -197,6 +196,18 @@ func test9():
 
 	return {
 		"test": "Dry run with something in inventory",
+		"dry_run_pass": dry_run_pass
+	};
+
+func test10():
+	var dry_run_result = _backend.dry_run_item_at("test_2", Vector2(0, 8), 1);
+
+	var dry_run_pass = false;
+	if(dry_run_result["amount"] == 0):
+		dry_run_pass = true;
+
+	return {
+		"test": "Dry run item not within bounds",
 		"dry_run_pass": dry_run_pass
 	};
 

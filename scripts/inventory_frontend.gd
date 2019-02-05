@@ -48,17 +48,17 @@ func get_backend():
 # Inventory Backend Events
 #==========================================================================	
 
-func item_added(inventory_item):
-	var item = inventory_item.get_item();
-	var slot = inventory_item.get_slot();
-	var inventory_id = inventory_item.get_id();
+func item_added(stack):
+	var item = stack.get_item();
+	var slot = stack.get_slot();
+	var inventory_id = stack.get_id();
 	
 	if(item):
 		var inventory_size = item.get_size();
 		
 		var display_data = item.fetch_inventory_display_data();
 		var new_scene = inventory_component_scene.instance();
-		new_scene.set_display_data(item.get_uid(), inventory_item.get_stack_size(), "inventory");
+		new_scene.set_display_data(item.get_uid(), stack.get_stack_size(), stack.get_max_stack_size(), "inventory");
 		
 		# Map the scene to the inventory ID
 		_inventory_node_mapping[inventory_id] = new_scene;
@@ -220,7 +220,7 @@ func get_drag_data(position):
 			
 			# Callbacks for display node
 			if(inner.has_method("set_display_data")):
-				inner.set_display_data(inventory_item.get_item_uid(), base_drag_data["stack_size"], "dragging");
+				inner.set_display_data(inventory_item.get_item_uid(), base_drag_data["stack_size"], item.get_max_stack_size(), "dragging");
 			
 			# Add drag preview
 			var outer = Control.new();
@@ -285,21 +285,6 @@ func drag_hover(position, slot, data):
 		if(can_stack == true):
 			_move_indicator.set_frame_color(stack_move_color);
 		elif(can_item_fit == true):
-			_move_indicator.set_frame_color(valid_move_color);
-		else:
-			_move_indicator.set_frame_color(invalid_move_color);
-			
-	elif(data["source"] == "drop_zone"):
-		var item           = ItemDatabase.get_item(data["item_uid"]);
-		var item_slot_size = item.get_size();
-		
-		# Draw move indicator in the right place
-		_move_indicator.set_visible(true);
-		_move_indicator.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
-		_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
-		
-		var can_item_fit = _backend.can_item_fit(data["item_uid"], slot);
-		if(can_item_fit == true):
 			_move_indicator.set_frame_color(valid_move_color);
 		else:
 			_move_indicator.set_frame_color(invalid_move_color);

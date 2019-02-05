@@ -4,6 +4,8 @@ class_name ItemDropZone
 
 
 export(NodePath) var backend;
+export(Color) var valid_color = Color(0, 1, 0, 0.5);
+export(Color) var invalid_color = Color(1, 0, 0, 0.5);
 export(PackedScene) var display_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
 export(Vector2) var drag_slot_size = Vector2(64, 64);
 
@@ -16,6 +18,7 @@ var _backend = null;
 # however.
 var _container       = null;
 var _mouse_sink_node = null;
+var _move_indicator  = null;
 
 var _dropped_internally = false;
 var _drop_fw = false;
@@ -51,14 +54,20 @@ func _ready():
 	
 	_container       = Container.new();
 	_mouse_sink_node = Control.new();
+	_move_indicator  = ColorRect.new();
 	
 	add_child(_container);
 	add_child(_mouse_sink_node);
+	add_child(_move_indicator);
 	
 	_container.set_anchors_and_margins_preset(PRESET_WIDE);
 	_container.set_mouse_filter(MOUSE_FILTER_IGNORE);
 	_mouse_sink_node.set_drag_forwarding(self);
 	_mouse_sink_node.set_anchors_and_margins_preset(Control.PRESET_WIDE);
+	_mouse_sink_node.connect("mouse_exited", self, "mouse_exited");
+	_move_indicator.set_visible(false);
+	_move_indicator.set_mouse_filter(MOUSE_FILTER_IGNORE);
+	_move_indicator.set_anchors_and_margins_preset(Control.PRESET_WIDE);
 	
 	if(backend):
 		_backend = get_node(backend);
@@ -80,9 +89,10 @@ func _process(delta):
 		_drop_fw = false;
 		
 		set_process(false);
-		
-	
-	
+
+func mouse_exited():
+	_move_indicator.set_visible(false);
+
 #==========================================================================
 # Drag Drop
 #==========================================================================	
@@ -105,6 +115,8 @@ func get_drag_data_fw(position, from_control):
 	outer.add_child(inner);
 	outer.set_size(Vector2(size.x * drag_slot_size.x, size.y * drag_slot_size.y));
 	inner.set_position(-position);
+	
+	_container.set_visible(false);
 
 	# Populate the drag data
 	var base_drag_data = _backend.get_base_drag_data();
@@ -112,7 +124,14 @@ func get_drag_data_fw(position, from_control):
 	return base_drag_data;
 
 func can_drop_data_fw(position, data, from_control):
-	# TODO
+	_move_indicator.set_visible(true);
+
+	var is_item_allowed = _backend.is_item_allowed(data["item_uid"]);
+	if(is_item_allowed):
+		_move_indicator.color = valid_color;
+	else:
+		_move_indicator.color = invalid_color;
+
 	return true;
 	
 func drop_data_fw(position, data, from_control):
@@ -124,26 +143,45 @@ func drop_data_fw(position, data, from_control):
 		transfer_data["stack_id"] = data["stack_id"];
 	_backend.transfer(data["backend"], data["item_uid"], transfer_data);
 	
-	# Notify the source
+	# Notify the frontend
 	var frontend = data["frontend"];
 	if(frontend && frontend.has_method("drop_fw")):
 		frontend.drop_fw(self);
+
+	_move_indicator.set_visible(false);
 		
 # Curtesy call from controls that have had the item from this Node dropped into.
 func drop_fw(from_control):
 	_drop_fw = true;
+
+	_move_indicator.set_visible(false);
+	_container.set_visible(true);
 	
 # Occurs when an item is dropped in no man's land.
 func gutter_drop():
-	pass;
+	_container.set_visible(true);
+	
+	
+#==========================================================================
+# Simple Slot Backend Events
+#==========================================================================	
 
+func item_changed(item_uid):
+	if(item_uid == "" || _container.get_child_count() > 0):
+		for child in _container.get_children():
+			child.queue_free();
+			
+	if(item_uid != ""):
+		var item = ItemDatabase.get_item(item_uid);
+		var display_data = item.fetch_inventory_display_data();
+		var new_scene = display_scene.instance();
+		new_scene.set_display_data(item_uid, 1, 1, "simple_slot");
+		_container.add_child(new_scene);
+		
 
 #==========================================================================
 # Private Internal
 #==========================================================================
-
-func item_changed():
-	print("HERE");
 
 func _is_drop_data_valid(data):
 	if(!data && (!data.has("source") || !data.has("source_node") || !data.has("item_uid"))):
