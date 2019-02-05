@@ -309,16 +309,15 @@ func drop_data(position, data):
 		return;
 
 	var slot = get_slot_from_position(position);
-		
+	
 	var from_frontend = data["frontend"];
 	var from_backend  = data["backend"];
-	var from_stack_id = 0;
+	
+	# Compile appropriate transfer data
+	var transfer_data = {};
 	if(data.has("stack_id")):
-		from_stack_id = data["stack_id"];
+		transfer_data["stack_id"] = data["stack_id"];
 
-	var transfer_data = {
-		"stack_id": from_stack_id
-	};
 	_backend.transfer(from_backend, slot, data["stack_size"], data["item_uid"], transfer_data);
 	
 	# If the source of the drag was internal then set flag

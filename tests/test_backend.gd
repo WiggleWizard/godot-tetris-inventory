@@ -56,7 +56,7 @@ func test1():
 
 func test2():
 	_backend.append_item("test_1", 50);
-	_backend.move_item(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0));
+	_backend.move_stack(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0));
 
 	return {
 		"test": "Moving full stack to open slot",
@@ -71,7 +71,7 @@ func test2():
 
 func test3():
 	_backend.append_item("test_1", 50);
-	_backend.move_item(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0), 25);
+	_backend.move_stack(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0), 25);
 
 	return {
 		"test": "Halving stack",
@@ -91,7 +91,7 @@ func test3():
 
 func test4():
 	_backend.append_item("test_1", 50);
-	_backend.move_item(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0), 9999);
+	_backend.move_stack(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0), 9999);
 
 	return {
 		"test": "Overmoving",
@@ -106,8 +106,8 @@ func test4():
 
 func test5():
 	_backend.append_item("test_1", 50);
-	_backend.move_item(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0), 25);
-	_backend.move_item(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0), 25);
+	_backend.move_stack(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0), 25);
+	_backend.move_stack(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0), 25);
 
 	return {
 		"test": "Halving then remerging",
@@ -127,7 +127,7 @@ func test5():
 func test6():
 	_backend.append_item("test_1", 75);
 	_backend.append_item("test_1", 75);
-	_backend.move_item(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(0, 1), 20);
+	_backend.move_stack(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(0, 1), 20);
 	_backend.append_item("test_1", 10);
 
 	return {
@@ -156,9 +156,24 @@ func test6():
 		]
 	};
 
+func test7():
+	_backend.append_item("test_2", 1);
+	_backend.move_stack(_backend.get_id_at_slot(Vector2(0, 0)), Vector2(1, 0));
+	
+	return {
+		"test": "Can move ontop of self",
+		"expected_state": [
+			{
+				"uid": "test_2",
+				"slot": Vector2(1, 0),
+				"stack_size": 1
+			}
+		]
+	};
+
 func confirm_inventory_state(state):
 	for state_entry in state:
-		var stack = _backend.get_inventory_item_at_slot(state_entry["slot"]);
+		var stack = _backend.get_stack_in(state_entry["slot"]);
 		if(!stack):
 			if(state_entry["uid"] == null):
 				continue;

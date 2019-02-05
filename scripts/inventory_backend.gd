@@ -1,3 +1,10 @@
+##
+# InventoryBackend
+#
+# Glossary/Notes:
+#     - A Stack's Slot is the Stack's top left placement.
+##
+
 extends Node
 
 class_name InventoryBackend
@@ -124,7 +131,7 @@ func add_item_at(item_uid, slot, amount = 1):
 		return amount;
 
 	# If we have the same item UID at the slot, then attempt to stack
-	var inventory_entry = get_inventory_item_at_slot(slot);
+	var inventory_entry = get_stack_at(slot);
 	if(inventory_entry != null):
 		if(inventory_entry.get_item_uid() == item_uid):
 			return add_to_stack(inventory_entry.get_id(), amount);
@@ -219,39 +226,11 @@ func set_item_stack_size(inventory_item_id, new_size):
 	_inventory[inventory_item_id].set_stack_size(new_size);
 	
 	emit_signal("item_stack_size_change", _inventory[inventory_item_id]);
-
-func add_to_stack(stack_id, amount):
-	if(_inventory[stack_id] == null):
-		return 0;
-		
-	var remaining_amount = _inventory[stack_id].add_to_stack(amount);
-	
-	emit_signal("item_stack_size_change", _inventory[stack_id]);
-
-	return remaining_amount;
-	
-# Removes `amount` from stack. Will remove from inventory if removing more than
-func remove_from_stack(stack_id, amount):
-	if(!_inventory[stack_id]):
-		return 0;
-		
-	_inventory[stack_id]._remove_from_stack(amount);
-
-	# If we have removed everything from the stack then remove it from the inventory
-	# entirely.
-	if(_inventory[stack_id].get_stack_size() <= 0):
-		remove_item(stack_id);
-		return 0;
-	else:
-		emit_signal("item_stack_size_change", _inventory[stack_id]);
-	
-	return _inventory[stack_id].get_stack_size();
 	
 # Moves inventory item from where it is currently to `slot`. Can split a stack by specifying the amount
-# that is required to move.
-func move_item(stack_id, to_slot, amount = -1):
+# that is required to move. Function also attempts to stack ontop of destination.
+func move_stack(stack_id, to_slot, amount = -1):
 	var from_stack = get_stack_from_id(stack_id);
-	var to_stack   = get_inventory_item_at_slot(to_slot); # Could be null if moving to an empty slot
 	var item_uid   = from_stack.get_item_uid();
 
 	# If amount is left default then it means we should move the entire stack
@@ -268,58 +247,62 @@ func move_item(stack_id, to_slot, amount = -1):
 
 	# Moving from and to the exact same slot then return same amount
 	if(from_stack.get_slot() == to_slot):
-		emit_signal("item_moved", _inventory[stack_id]);
+		# If moving the entire stack then it's a move
+		if(amount == from_stack.get_stack_size()):
+			emit_signal("item_moved", _inventory[stack_id]);
+		else:
+			emit_signal("item_stack_size_change", _inventory[stack_id]);
 
 		result["moved"]     = amount;
 		result["remaining"] = 0;
 
 		return result;
 
-	var sweep_result = sweep(item_uid, to_slot);
+	# Moved to the exact slot that has the same item UID then attempt to stack
+	var to_stack = get_stack_in(to_slot); # Could be null if moving to an empty slot
+	if(to_stack != null && to_stack.get_item_uid() == item_uid):
+		if(!to_stack.at_max_stack()):
+			var amount_remaining = add_to_stack(to_stack.get_id(), amount);
+			var amount_transferred = amount - amount_remaining;
+			remove_from_stack(stack_id, amount_transferred);
+
+			result["moved"]     = amount;
+			result["remaining"] = from_stack.get_stack_size();
+
+			return result;
+		else:
+			# No real move, item just moved back to where it came from
+			emit_signal("item_moved", _inventory[stack_id]);
+			return result;
 
 	# If we hit nothing, then we are free to move the amount into the slot
+	var sweep_result = sweep(item_uid, to_slot);
 	if(sweep_result.size() == 0):
 		if(amount == from_stack.get_stack_size()):
-			from_stack._set_slot(to_slot);
-			emit_signal("item_moved", _inventory[stack_id]);
+			# Move then entire stack
+			set_stack_slot(stack_id, to_slot);
 
 			result["moved"]     = amount;
 			result["remaining"] = 0;
-		# We only want to move specified amount off the stack
 		else:
-			
-			remove_from_stack(stack_id, amount);
+			# Remove the amount off the stack. If the entire stack is removed then the stack
+			# itself will be removed from the inventory.
+			var amount_left = remove_from_stack(stack_id, amount);
+	
+			# Add it to the destination
 			add_item_at(from_stack.get_item_uid(), to_slot, amount);
+	
+			result["moved"]     = amount;
+			result["remaining"] = amount_left;
+	elif(sweep_result.size() == 1):
+		if(sweep_result[0] == stack_id && amount == from_stack.get_stack_size()):
+			# We hit the same stack, and we are moving the whole stack then it's a valid placement
+			set_stack_slot(stack_id, to_slot);
 
 			result["moved"]     = amount;
-			result["remaining"] = from_stack.get_stack_size();
-	# If we hit the same stack, and we are moving the whole stack then it's a valid placement
-	elif(amount == from_stack.get_stack_size() && sweep_result.size() == 1 && sweep_result[0] == stack_id):
-		_inventory[stack_id]._set_slot(to_slot);
-		emit_signal("item_moved", _inventory[stack_id]);
-
-		result["moved"]     = amount;
-		result["remaining"] = 0;
-	# Attempted move ontop of another stack with the same item UID
-	elif(sweep_result.size() == 1):
-		var hit_stack = get_stack_from_id(sweep_result[0]);
-		if(hit_stack.get_item_uid() == item_uid):
-			if(!to_stack.at_max_stack()):
-				var amount_remaining = add_to_stack(to_stack.get_id(), amount);
-				var amount_transferred = amount - amount_remaining;
-				remove_from_stack(stack_id, amount_transferred);
-
-				result["moved"]     = amount;
-				result["remaining"] = from_stack.get_stack_size();
-
-				return result;
-
-			result["moved"]     = 0;
-			result["remaining"] = from_stack.get_stack_size();
-		# 
-		else:
-			emit_signal("item_stack_size_change", _inventory[stack_id]);
+			result["remaining"] = 0;
 			
+	emit_signal("item_stack_size_change", _inventory[stack_id]);
 	emit_signal("item_moved", _inventory[stack_id]);
 
 	return result;
@@ -336,7 +319,7 @@ func remove_item(inventory_item_id):
 	
 	emit_signal("item_removed", item_to_be_removed);
 	
-# Attempts to find a slot for the item.
+# Attempts to find a physical slot for the item. Ignores stackables.
 # Returns the slot as Vector2, if either component is below 0 then
 # no appropriate slot was found for the item.
 func find_slot_for_item(item_uid, mask = []):
@@ -351,7 +334,7 @@ func find_slot_for_item(item_uid, mask = []):
 				
 	return Vector2(-1, -1);
 	
-# Checks if an item can fit at a specific slot.
+# Checks if an item can physically fit at a specific slot. Ignores stackables altogether.
 func can_item_fit(item_uid, slot, mask = []):
 	if(ItemDatabase.get_item(item_uid) == null):
 		return false;
@@ -371,7 +354,9 @@ func dry_run_item_at(item_uid, slot, amount):
 	};
 
 	# No such item or item would be out of bounds in this slot
-	if(ItemDatabase.get_item(item_uid) == null || !would_be_in_bounds(item_uid, slot)):
+	if(ItemDatabase.get_item(item_uid) == null):
+		return results;
+	if(!would_be_in_bounds(item_uid, slot)):
 		return results;
 
 	# If the stack directly at the slot is the same item UID and the stack is not full then
@@ -388,8 +373,9 @@ func dry_run_item_at(item_uid, slot, amount):
 
 		return results;
 		
-	# If sweep came up with nothing
 	var sweep_results = sweep(item_uid, slot);
+
+	# If sweep came up with nothing
 	if(sweep_results.size() == 0):
 		results["strategy"] = "add";
 		results["amount"]   = amount;
@@ -435,17 +421,17 @@ func clear_inventory():
 func transfer(from_backend, to_slot, amount, item_uid, transfer_data):
 	# Different strategy if moving internally
 	if(from_backend == self):
-		move_item(transfer_data["stack_id"], to_slot, amount);
+		move_stack(transfer_data["stack_id"], to_slot, amount);
 	else:
-
 		# Confer with the originating backend that this is a valid transfer
 		var validate_result = from_backend.validate_transfer(amount, item_uid, transfer_data);
 		if(validate_result == true):
 			# Check if the item fit will in here
 			var dry_run_results = dry_run_item_at(item_uid, to_slot, amount);
-			print(dry_run_results);
 
-			# No obstructions, add it to the 
+			# No obstructions, inform the originating backend to remove the items
+			
+			# Add it to the current inventory
 
 # Just a security measure to enture that the backend has the item & stack available
 func can_transfer(amount, transfer_data):
@@ -509,9 +495,47 @@ func fetch_stack(amount, stack_id = 0):
 
 	return fetch_result;
 
+
 #==========================================================================
 # Private
 #==========================================================================	
+
+func add_to_stack(stack_id, amount):
+	if(_inventory[stack_id] == null):
+		return 0;
+		
+	var remaining_amount = _inventory[stack_id].add_to_stack(amount);
+	
+	emit_signal("item_stack_size_change", _inventory[stack_id]);
+
+	return remaining_amount;
+
+# Warning: This does not check for collisions, do this manually.
+func set_stack_slot(stack_id, new_slot):
+	if(_inventory[stack_id] == null):
+		return false;
+
+	_inventory[stack_id]._set_slot(new_slot);
+	emit_signal("item_moved", _inventory[stack_id]);
+
+	return true;
+	
+# Removes `amount` from stack. Will remove from inventory if removing more than
+func remove_from_stack(stack_id, amount):
+	if(!_inventory[stack_id]):
+		return 0;
+		
+	_inventory[stack_id]._remove_from_stack(amount);
+
+	# If we have removed everything from the stack then remove it from the inventory
+	# entirely.
+	if(_inventory[stack_id].get_stack_size() <= 0):
+		remove_item(stack_id);
+		return 0;
+	else:
+		emit_signal("item_stack_size_change", _inventory[stack_id]);
+	
+	return _inventory[stack_id].get_stack_size();
 
 # Checks to see if the item would be within the bounds of the inventory space.
 func would_be_in_bounds(item_uid, slot):
@@ -540,19 +564,21 @@ func get_id_at_slot(slot):
 				
 	return -1;
 
-func get_inventory_item_at_slot(slot):
-	var id = get_id_at_slot(slot);
-	if(id == -1):
-		return null;
-
-	return _inventory[id];
-
+# Gets the stack that occupies this physical slot.
 func get_stack_at(slot):
 	var id = get_id_at_slot(slot);
 	if(id == -1):
 		return null;
 
 	return _inventory[id];
+
+# Gets the stack that is located in this slot.
+func get_stack_in(slot):
+	for stack in _inventory:
+		if(stack != null && stack.get_slot() == slot):
+			return stack;
+
+	return null;
 	
 func get_inventory_item(inventory_item_id):
 	#print("/!\\ Deprecated");
