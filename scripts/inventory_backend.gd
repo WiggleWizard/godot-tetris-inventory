@@ -29,6 +29,12 @@ enum DragModifier {
 	DRAG_SPLIT_HALF
 }
 
+enum DryRunStrategy {
+	STRAT_NONE,
+	STRAT_ADD,
+	STRAT_MERGE
+}
+
 
 # Special class to represent an inventory item
 class InventoryItem:
@@ -349,7 +355,7 @@ func can_item_fit(item_uid, slot, mask = []):
 # Does a dry run to see if the item will fit where
 func dry_run_item_at(item_uid, slot, amount):
 	var results = {
-		"strategy": "none",
+		"strategy": DryRunStrategy.STRAT_NONE,
 		"amount": 0
 	};
 
@@ -363,7 +369,7 @@ func dry_run_item_at(item_uid, slot, amount):
 	# automatically merge and calculate how many could fit onto the stack.
 	var stack_at_slot = get_stack_at(slot);
 	if(stack_at_slot && item_uid == stack_at_slot.get_item_uid() && !stack_at_slot.at_max_stack()):
-		results["strategy"] = "merge";
+		results["strategy"] = DryRunStrategy.STRAT_MERGE;
 		
 		var available_amount = stack_at_slot.get_max_stack_size() - stack_at_slot.get_stack_size();
 		if(available_amount - amount < 0):
@@ -377,7 +383,7 @@ func dry_run_item_at(item_uid, slot, amount):
 
 	# If sweep came up with nothing
 	if(sweep_results.size() == 0):
-		results["strategy"] = "add";
+		results["strategy"] = DryRunStrategy.STRAT_ADD;
 		results["amount"]   = amount;
 
 	return results;
@@ -428,19 +434,15 @@ func transfer(from_backend, to_slot, amount, item_uid, transfer_data):
 		if(validate_result == true):
 			# Check if the item fit will in here
 			var dry_run_results = dry_run_item_at(item_uid, to_slot, amount);
-
-			# No obstructions, inform the originating backend to remove the items
-			
-			# Add it to the current inventory
-
-# Just a security measure to enture that the backend has the item & stack available
-func can_transfer(amount, transfer_data):
-	var stack = get_stack_from_id(transfer_data["stack_id"]);
-
-	# Check if stack has the right stack size
-	if(stack.get_stack_size() <= amount):
-		return true;
-	return false;
+			if(dry_run_results["amount"] > 0):
+				from_backend.handle_transfer(dry_run_results["amount"], transfer_data);
+				
+				# Handle the different strategies
+				if(dry_run_results["strategy"] == DryRunStrategy.STRAT_ADD):
+					add_item_at(item_uid, to_slot, amount);
+				elif(dry_run_results["strategy"] == DryRunStrategy.STRAT_MERGE):
+					var stack_id = get_id_at_slot(to_slot);
+					add_to_stack(stack_id, amount);
 
 func validate_transfer(amount, item_uid, transfer_data):
 	if(!transfer_data.has("stack_id")):
@@ -452,48 +454,8 @@ func validate_transfer(amount, item_uid, transfer_data):
 	return false;
 
 func handle_transfer(amount, transfer_data):
-	return {
-		"item_uid": "",
-		"amount": 0
-	};
-
-
-# Transfers an item around internally and externally. Usually called from frontend when a drop happens.
-# func transfer(from_backend, amount = -1, stack_id = 0, to_slot = Vector2(-1, -1)):
-# 	pass;
-# 	# If transfer requested from internal backend then refer to moving item
-# 	if(from_backend == self):
-# 		return move_item(stack_id, to_slot, amount);
-
-		
-# 	# Add the item to the inventory at the temp slot
-# 	var item_uid = from_backend.get_item_uid(stack_id);
-# 	var new_stack_id = add_item(item_uid, amount);
-
-# 	# Attempt to move the newly added stack into position
-# 	var move_result = move_item(new_stack_id, to_slot);
-# 	if(move_result["moved"] > 0):
-# 		var fetch_result = from_backend.fetch_stack(amount, stack_id);
-# 	else:
-# 		remove_item(new_stack_id);
-
-
-
-# Usually called from another backend instance to request parts or all of a specific stack.
-# Take care as this is a destructive call.
-func fetch_stack(amount, stack_id = 0):
-	var stack = get_stack_from_id(stack_id);
-
-	var fetch_result = {
-		"item_uid": "",
-		"amount": 0
-	};
-
-	if(stack && stack.get_stack_size() >= amount):
-		remove_from_stack(stack_id, amount);
-		fetch_result["item_uid"] = stack.get_item_uid();
-
-	return fetch_result;
+	if(transfer_data.has("stack_id")):
+		remove_from_stack(transfer_data["stack_id"], amount);
 
 
 #==========================================================================

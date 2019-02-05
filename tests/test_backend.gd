@@ -20,8 +20,12 @@ func _ready():
 			# Run the test
 			var test_state = m.call_func();
 
-			# Confirm the inventory is in a state we expected
-			test_pass = confirm_inventory_state(test_state["expected_state"]);
+			if(test_state.has("dry_run_pass")):
+				test_pass = test_state["dry_run_pass"];
+			else:
+				# Confirm the inventory is in a state we expected
+				test_pass = confirm_inventory_state(test_state["expected_state"]);
+				
 			_backend.clear_inventory();
 
 			if(test_pass == true):
@@ -169,6 +173,31 @@ func test7():
 				"stack_size": 1
 			}
 		]
+	};
+
+func test8():
+	var dry_run_result = _backend.dry_run_item_at("test_2", Vector2(0, 0), 1);
+
+	var dry_run_pass = false;
+	if(dry_run_result["amount"] == 1 && dry_run_result["strategy"] == InventoryBackend.DryRunStrategy.STRAT_ADD):
+		dry_run_pass = true;
+
+	return {
+		"test": "Dry run with nothing in inventory",
+		"dry_run_pass": dry_run_pass
+	};
+
+func test9():
+	_backend.append_item("test_2", 1);
+	var dry_run_result = _backend.dry_run_item_at("test_2", Vector2(0, 1), 1);
+
+	var dry_run_pass = false;
+	if(dry_run_result["amount"] == 0):
+		dry_run_pass = true;
+
+	return {
+		"test": "Dry run with something in inventory",
+		"dry_run_pass": dry_run_pass
 	};
 
 func confirm_inventory_state(state):
