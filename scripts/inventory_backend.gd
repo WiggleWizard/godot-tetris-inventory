@@ -10,7 +10,7 @@ extends Node
 class_name InventoryBackend
 
 export(Vector2) var inventory_size = Vector2(1, 1) setget set_inventory_size, get_inventory_size;
-export(bool) var auto_stack = true;
+export(bool) var auto_stack_on_append = true;
 
 var _backend_type = "Inventory";
 
@@ -168,7 +168,7 @@ func append_item(item_uid, amount = 1):
 	var amount_added = 0;
 		
 	# Stack onto existing items in the inventory as much as possible
-	if(auto_stack && item.get_max_stack_size() > 1):
+	if(auto_stack_on_append && item.get_max_stack_size() > 1):
 		for y in range(inventory_size.y):
 			for x in range(inventory_size.x):
 				var stack_id = get_id_at_slot(Vector2(x, y));
@@ -317,13 +317,13 @@ func move_stack(stack_id, to_slot, amount = -1):
 	
 # Removes an item at specific ID. This ID can be fetched by using
 # get_id_at_slot().
-func remove_item(inventory_item_id):
-	if(!_inventory[inventory_item_id]):
+func remove_stack(stack_id):
+	if(!_inventory[stack_id]):
 		return false;
 		
-	var item_to_be_removed = _inventory[inventory_item_id];
+	var item_to_be_removed = _inventory[stack_id];
 	
-	_inventory[inventory_item_id] = null;
+	_inventory[stack_id] = null;
 	
 	emit_signal("stack_removed", item_to_be_removed);
 	
@@ -506,7 +506,7 @@ func remove_from_stack(stack_id, amount):
 	# If we have removed everything from the stack then remove it from the inventory
 	# entirely.
 	if(_inventory[stack_id].get_stack_size() <= 0):
-		remove_item(stack_id);
+		remove_stack(stack_id);
 		return 0;
 	else:
 		emit_signal("stack_size_changed", _inventory[stack_id]);
@@ -555,23 +555,12 @@ func get_stack_in(slot):
 			return stack;
 
 	return null;
-	
-func get_inventory_item(inventory_item_id):
-	#print("/!\\ Deprecated");
-	if(inventory_item_id < 0 || inventory_item_id >= _inventory.size()):
-		return null;
-		
-	return _inventory[inventory_item_id];
 
 func get_stack_from_id(stack_id):
 	if(stack_id < 0 || stack_id >= _inventory.size()):
 		return null;
 		
 	return _inventory[stack_id];
-	
-# Returns all items in the player's inventory.
-func get_all_inventory_items():
-	return _inventory;
 	
 # Returns an array of collided stack IDs if this item were to be put in `slot`.
 func sweep(item_uid, slot, mask = []):

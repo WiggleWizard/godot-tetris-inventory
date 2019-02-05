@@ -189,12 +189,12 @@ func get_drag_data(position):
 	# Figure out which slot the player started dragging
 	var drag_start_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
 	
-	var inventory_id = _backend.get_id_at_slot(drag_start_slot);
-	if(_backend.is_valid_id(inventory_id)):
-		var mapped_node = get_mapped_node(inventory_id);
+	var stack_id = _backend.get_id_at_slot(drag_start_slot);
+	if(_backend.is_valid_id(stack_id)):
+		var mapped_node = get_mapped_node(stack_id);
 		if(mapped_node):
-			var inventory_item = _backend.get_inventory_item(inventory_id);
-			var item           = inventory_item.get_item();
+			var stack          = _backend.get_stack_from_id(stack_id);
+			var item           = stack.get_item();
 			var inventory_size = item.get_size();
 			
 			# Get drag modifier (holding certain buttons can split the stack, etc)
@@ -209,17 +209,17 @@ func get_drag_data(position):
 			_drag_data = base_drag_data;
 			
 			# If we are dragging the whole stack then hide it
-			if(_drag_data["stack_size"] == inventory_item.get_stack_size()):
+			if(_drag_data["stack_size"] == stack.get_stack_size()):
 				mapped_node.modulate.a = drag_alpha;
-			elif(get_mapped_node(inventory_id).has_method("stack_size_changed")):
-				get_mapped_node(inventory_id).stack_size_changed(inventory_item.get_stack_size() - _drag_data["stack_size"]);
+			elif(get_mapped_node(stack_id).has_method("stack_size_changed")):
+				get_mapped_node(stack_id).stack_size_changed(stack.get_stack_size() - _drag_data["stack_size"]);
 			
 			# Create an outer for the preview so we can have an offset.
 			var inner = inventory_component_scene.instance();
 			
 			# Callbacks for display node
 			if(inner.has_method("set_display_data")):
-				inner.set_display_data(inventory_item.get_item_uid(), base_drag_data["stack_size"], item.get_max_stack_size(), "dragging");
+				inner.set_display_data(stack.get_item_uid(), base_drag_data["stack_size"], item.get_max_stack_size(), "dragging");
 			
 			# Add drag preview
 			var outer = Control.new();
@@ -266,16 +266,16 @@ func drag_hover(position, slot, data):
 			can_item_fit = _backend.can_item_fit(data["item_uid"], offset_slot);
 
 		# Check if we are hovering over an inventory entry that has the same UID
-		var can_stack     = false;
-		var hovering_id   = _backend.get_id_at_slot(slot);
-		var hovering_item = _backend.get_inventory_item(hovering_id);
-		if(hovering_item != null):
+		var can_stack  = false;
+		var stack_id   = _backend.get_id_at_slot(slot);
+		var stack_item = _backend.get_stack_from_id(stack_id);
+		if(stack_item != null):
 			# If hovering over the same item that was picked up
-			if(hovering_id == data["stack_id"]):
+			if(stack_id == data["stack_id"]):
 				# If we aren't dragging the entire stack then allow stack
-				if(hovering_item.get_stack_size() != data["stack_size"]):
+				if(stack_item.get_stack_size() != data["stack_size"]):
 					can_stack = true;
-			elif(hovering_item.get_item_uid() == data["item_uid"] && !hovering_item.at_max_stack()):
+			elif(stack_item.get_item_uid() == data["item_uid"] && !stack_item.at_max_stack()):
 				can_stack = true;
 			
 		# Set move indicator to different colors depending on whether item can fit
