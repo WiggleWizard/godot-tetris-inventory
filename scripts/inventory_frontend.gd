@@ -14,7 +14,7 @@ export(float) var drag_alpha = 0;
 export(PackedScene) var inventory_component_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
 
 var _backend = null;
-var _inventory_node_mapping = {};
+var _stack_node_mapping = {};
 
 var _container       = null;
 var _mouse_sink_node = null;
@@ -34,8 +34,8 @@ var _drop_fw = false;
 #==========================================================================	
 		
 # Returns the actual node thats mapped to the inventory item ID
-func get_mapped_node(inventory_item_id):
-	return _inventory_node_mapping[inventory_item_id];
+func get_mapped_node(stack_id):
+	return _stack_node_mapping[stack_id];
 	
 func get_slot_from_position(position):
 	return Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
@@ -49,9 +49,9 @@ func get_backend():
 #==========================================================================	
 
 func item_added(stack):
-	var item = stack.get_item();
-	var slot = stack.get_slot();
-	var inventory_id = stack.get_id();
+	var item     = stack.get_item();
+	var slot     = stack.get_slot();
+	var stack_id = stack.get_id();
 	
 	if(item):
 		var inventory_size = item.get_size();
@@ -61,7 +61,7 @@ func item_added(stack):
 		new_scene.set_display_data(item.get_uid(), stack.get_stack_size(), stack.get_max_stack_size(), "inventory");
 		
 		# Map the scene to the inventory ID
-		_inventory_node_mapping[inventory_id] = new_scene;
+		_stack_node_mapping[stack_id] = new_scene;
 		
 		# Append the scene to the tree
 		_container.add_child(new_scene);
@@ -69,30 +69,30 @@ func item_added(stack):
 		new_scene.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
 		new_scene.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
 
-func item_moved(inventory_item):
-	var slot                = inventory_item.get_slot();
-	var inventory_item_id   = inventory_item.get_id();
-	var inventory_item_node = get_mapped_node(inventory_item_id);
+func stack_moved(stack):
+	var slot       = stack.get_slot();
+	var stack_id   = stack.get_id();
+	var stack_node = get_mapped_node(stack_id);
 	
-	if(inventory_item_node):
-		inventory_item_node.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
-		inventory_item_node.modulate.a = 1;
+	if(stack_node):
+		stack_node.set_position(Vector2(slot.x * slot_size, slot.y * slot_size));
+		stack_node.modulate.a = 1;
 
-func item_stack_size_change(inventory_item):
-	var inventory_item_node = get_mapped_node(inventory_item.get_id());
-	if(inventory_item_node.has_method("stack_size_changed")):
-		inventory_item_node.stack_size_changed(inventory_item.get_stack_size());
+func stack_size_changed(stack):
+	var stack_node = get_mapped_node(stack.get_id());
+	if(stack_node.has_method("stack_size_changed")):
+		stack_node.stack_size_changed(stack.get_stack_size());
 	
-func item_removed(inventory_item):
-	var inventory_id = inventory_item.get_id();
+func stack_removed(stack):
+	var stack_id = stack.get_id();
 	
 	# Remove the inventory item node from the scene
-	var mapped_node = get_mapped_node(inventory_id);
+	var mapped_node = get_mapped_node(stack_id);
 	if(mapped_node):
 		mapped_node.queue_free();
 		
 	# Unmap the inventory item scene
-	_inventory_node_mapping.erase(inventory_id);
+	_stack_node_mapping.erase(stack_id);
 	
 	
 #==========================================================================
@@ -129,10 +129,10 @@ func _ready():
 		_backend = get_node(inventory_backend);
 		
 	if(_backend):
-		_backend.connect("item_added", self, "item_added");
-		_backend.connect("item_stack_size_change", self, "item_stack_size_change");
-		_backend.connect("item_moved", self, "item_moved");
-		_backend.connect("item_removed", self, "item_removed");
+		_backend.connect("item_added",         self, "item_added");
+		_backend.connect("stack_size_changed", self, "stack_size_changed");
+		_backend.connect("stack_moved",        self, "stack_moved");
+		_backend.connect("stack_removed",      self, "stack_removed");
 		
 
 func _process(delta):
@@ -321,47 +321,6 @@ func drop_fw(from_control):
 	var drag_data = viewport.gui_get_drag_data();
 	if(drag_data["mapped_node"]):
 		drag_data["mapped_node"].modulate.a = 1;
-
-# Callback for when a drop is "acknowledged" from a third party node
-func validate_drop(valid = true):
-	if(valid):
-		_dropped_in_drop_zone = true;
-	else:
-		_move_indicator.set_visible(false);
-		_drag_data["mapped_node"].modulate.a = 1;
-	
-# Called when an item is dropped in a drop zone. Return true to accept the drop
-# Return false to deny it.
-func drop_zone_drop(remove_from_source, accepted, dropped_inventory_item_id, dest):
-	validate_drop(true);
-	
-	if(remove_from_source && accepted):
-		var curr_item_uid = dest.get_curr_item_uid();
-		if(curr_item_uid != ""):
-			# If the drop zone already has something in it, then we need to swap it out.
-			# So first we attempt to find space in the inventory for the item (while ignoring
-			# the item that was dropped as it's still in the inventory). If there's
-			# no available slot then we refuse the drop.
-			var fittable_slot = _backend.find_slot_for_item(curr_item_uid, [dropped_inventory_item_id]);
-			if(fittable_slot.x > -1 && fittable_slot.y > -1):
-				# Remove dropped item
-				_backend.remove_item(dropped_inventory_item_id);
-				
-				# Add item that was in the drop zone
-				_backend.add_item_at(curr_item_uid, fittable_slot);
-				
-				return true;
-			else:
-				_drag_data["mapped_node"].modulate.a = 1;
-				return false;
-		else:
-			_backend.remove_item(dropped_inventory_item_id);
-			return true;
-		
-		return false;
-	else:
-		_drag_data["mapped_node"].modulate.a = 1;
-		return false;
 	
 # Occurs when an item is dropped in no man's land.
 func gutter_drop():

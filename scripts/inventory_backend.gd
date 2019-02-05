@@ -16,13 +16,10 @@ var _backend_type = "Inventory";
 
 var _inventory = [];
 
-# Holds data about the item that's being dragged from the inventory.
-var _dragging = null;
-
 signal item_added;
-signal item_moved;
-signal item_removed;
-signal item_stack_size_change;
+signal stack_size_changed;
+signal stack_moved;
+signal stack_removed;
 
 enum DragModifier {
 	DRAG_ALL,
@@ -192,11 +189,11 @@ func append_item(item_uid, amount = 1):
 					# Calculate amount left after we add to this stack
 					var amount_left = amount - item_stack_remainder;
 					if(amount_left <= 0):
-						set_item_stack_size(stack.get_id(), stack_size + amount);
+						set_stack_size(stack.get_id(), stack_size + amount);
 						amount_added += amount;
 						amount = 0;
 					else:
-						set_item_stack_size(stack.get_id(), item_max_stack_size);
+						set_stack_size(stack.get_id(), item_max_stack_size);
 						amount_added += item_max_stack_size;
 						amount = amount_left;
 	
@@ -230,13 +227,13 @@ func append_item(item_uid, amount = 1):
 	return amount_added;
 	
 # Sets the inventory item stack size
-func set_item_stack_size(inventory_item_id, new_size):
-	if(!_inventory[inventory_item_id]):
+func set_stack_size(stack_id, new_size):
+	if(!_inventory[stack_id]):
 		return false;
 		
-	_inventory[inventory_item_id].set_stack_size(new_size);
+	_inventory[stack_id].set_stack_size(new_size);
 	
-	emit_signal("item_stack_size_change", _inventory[inventory_item_id]);
+	emit_signal("stack_size_changed", _inventory[stack_id]);
 	
 # Moves inventory item from where it is currently to `slot`. Can split a stack by specifying the amount
 # that is required to move. Function also attempts to stack ontop of destination.
@@ -260,9 +257,9 @@ func move_stack(stack_id, to_slot, amount = -1):
 	if(from_stack.get_slot() == to_slot):
 		# If moving the entire stack then it's a move
 		if(amount == from_stack.get_stack_size()):
-			emit_signal("item_moved", _inventory[stack_id]);
+			emit_signal("stack_moved", _inventory[stack_id]);
 		else:
-			emit_signal("item_stack_size_change", _inventory[stack_id]);
+			emit_signal("stack_size_changed", _inventory[stack_id]);
 
 		result["moved"]     = amount;
 		result["remaining"] = 0;
@@ -283,7 +280,7 @@ func move_stack(stack_id, to_slot, amount = -1):
 			return result;
 		else:
 			# No real move, item just moved back to where it came from
-			emit_signal("item_moved", _inventory[stack_id]);
+			emit_signal("stack_moved", _inventory[stack_id]);
 			return result;
 
 	# If we hit nothing, then we are free to move the amount into the slot
@@ -313,8 +310,8 @@ func move_stack(stack_id, to_slot, amount = -1):
 			result["moved"]     = amount;
 			result["remaining"] = 0;
 			
-	emit_signal("item_stack_size_change", _inventory[stack_id]);
-	emit_signal("item_moved", _inventory[stack_id]);
+	emit_signal("stack_size_changed", _inventory[stack_id]);
+	emit_signal("stack_moved", _inventory[stack_id]);
 
 	return result;
 	
@@ -328,7 +325,7 @@ func remove_item(inventory_item_id):
 	
 	_inventory[inventory_item_id] = null;
 	
-	emit_signal("item_removed", item_to_be_removed);
+	emit_signal("stack_removed", item_to_be_removed);
 	
 # Attempts to find a physical slot for the item. Ignores stackables.
 # Returns the slot as Vector2, if either component is below 0 then
@@ -485,7 +482,7 @@ func add_to_stack(stack_id, amount):
 		
 	var remaining_amount = _inventory[stack_id].add_to_stack(amount);
 	
-	emit_signal("item_stack_size_change", _inventory[stack_id]);
+	emit_signal("stack_size_changed", _inventory[stack_id]);
 
 	return remaining_amount;
 
@@ -495,7 +492,7 @@ func set_stack_slot(stack_id, new_slot):
 		return false;
 
 	_inventory[stack_id]._set_slot(new_slot);
-	emit_signal("item_moved", _inventory[stack_id]);
+	emit_signal("stack_moved", _inventory[stack_id]);
 
 	return true;
 	
@@ -512,7 +509,7 @@ func remove_from_stack(stack_id, amount):
 		remove_item(stack_id);
 		return 0;
 	else:
-		emit_signal("item_stack_size_change", _inventory[stack_id]);
+		emit_signal("stack_size_changed", _inventory[stack_id]);
 	
 	return _inventory[stack_id].get_stack_size();
 
