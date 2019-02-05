@@ -316,7 +316,10 @@ func drop_data(position, data):
 	if(data.has("stack_id")):
 		from_stack_id = data["stack_id"];
 
-	_backend.transfer(from_backend, data["stack_size"], from_stack_id, slot);
+	var transfer_data = {
+		"stack_id": from_stack_id
+	};
+	_backend.transfer(from_backend, slot, data["stack_size"], data["item_uid"], transfer_data);
 	
 	# If the source of the drag was internal then set flag
 	if(from_frontend == self):

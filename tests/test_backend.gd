@@ -9,7 +9,7 @@ func _ready():
 		print("Failed to load test database from disk");
 		return false;
 
-	_backend = Inventory.new();
+	_backend = InventoryBackend.new();
 	_backend.set_inventory_size(Vector2(10, 10));
 	
 	var test_pass = false;

@@ -6,9 +6,20 @@ export(bool) var remove_from_source = false;
 export(bool) var allow_drop_swapping = true;
 export(Array, String) var inclusive_filter = [];
 
+var _backend_type = "SimpleSlot";
+
 var _item_uid = "";
 
 signal item_changed;
+
+
+#==========================================================================
+# Generic Overrides
+#==========================================================================
+
+# Fetches the item UID that's in this slot
+func get_item_uid(stack_id = 0):
+	return _item_uid;
 
 
 #==========================================================================
@@ -18,10 +29,6 @@ signal item_changed;
 # Returns true if there's a valid item in this slot
 func has_valid_item():
 	return _item_uid != "";
-
-# Fetches the item UID that's in this slot
-func get_item_uid():
-	return _item_uid;
 
 # Checks whether this specific item UID is allowed in this slot
 func is_item_allowed(item_uid):

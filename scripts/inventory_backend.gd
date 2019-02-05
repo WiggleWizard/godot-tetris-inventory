@@ -1,9 +1,11 @@
 extends Node
 
-class_name Inventory
+class_name InventoryBackend
 
 export(Vector2) var inventory_size = Vector2(1, 1) setget set_inventory_size, get_inventory_size;
 export(bool) var auto_stack = true;
+
+var _backend_type = "Inventory";
 
 var _inventory = [];
 
@@ -133,6 +135,11 @@ func add_item_at(item_uid, slot, amount = 1):
 		return 0;
 		
 	return amount;
+
+# Adds an item into the "offscreen" buffer. Most commonly used to push an item
+# into the inventory then use `move_item` to move it into the correct location.
+func add_item(item_uid, amount = 1):
+	return _add_to_inventory_list(item_uid, Vector2(-1, -1), amount);
 	
 # Appends an item to the inventory, attempting to find a spare slot for it.
 # `item_id` should be a valid item ID that's been registered to the global item database.
@@ -242,7 +249,7 @@ func remove_from_stack(stack_id, amount):
 	
 # Moves inventory item from where it is currently to `slot`. Can split a stack by specifying the amount
 # that is required to move.
-func move_item(stack_id, to_slot, amount = -1, debug = false):
+func move_item(stack_id, to_slot, amount = -1):
 	var from_stack = get_stack_from_id(stack_id);
 	var to_stack   = get_inventory_item_at_slot(to_slot); # Could be null if moving to an empty slot
 	var item_uid   = from_stack.get_item_uid();
@@ -307,15 +314,14 @@ func move_item(stack_id, to_slot, amount = -1, debug = false):
 
 				return result;
 
-			# Destination at max stack
-			emit_signal("item_stack_size_change", from_stack);
-
 			result["moved"]     = 0;
 			result["remaining"] = from_stack.get_stack_size();
+		# 
 		else:
-			emit_signal("item_moved", _inventory[stack_id]);
-			emit_signal("item_stack_size_change", from_stack);
+			emit_signal("item_stack_size_change", _inventory[stack_id]);
 			
+	emit_signal("item_moved", _inventory[stack_id]);
+
 	return result;
 	
 # Removes an item at specific ID. This ID can be fetched by using
@@ -356,6 +362,40 @@ func can_item_fit(item_uid, slot, mask = []):
 	if(sweep(item_uid, slot, mask).size() == 0):
 		return true;
 	return false;
+
+# Does a dry run to see if the item will fit where
+func dry_run_item_at(item_uid, slot, amount):
+	var results = {
+		"strategy": "none",
+		"amount": 0
+	};
+
+	# No such item or item would be out of bounds in this slot
+	if(ItemDatabase.get_item(item_uid) == null || !would_be_in_bounds(item_uid, slot)):
+		return results;
+
+	# If the stack directly at the slot is the same item UID and the stack is not full then
+	# automatically merge and calculate how many could fit onto the stack.
+	var stack_at_slot = get_stack_at(slot);
+	if(stack_at_slot && item_uid == stack_at_slot.get_item_uid() && !stack_at_slot.at_max_stack()):
+		results["strategy"] = "merge";
+		
+		var available_amount = stack_at_slot.get_max_stack_size() - stack_at_slot.get_stack_size();
+		if(available_amount - amount < 0):
+			results["amount"] = available_amount;
+		else:
+			results["amount"] = amount;
+
+		return results;
+		
+	# If sweep came up with nothing
+	var sweep_results = sweep(item_uid, slot);
+	if(sweep_results.size() == 0):
+		results["strategy"] = "add";
+		results["amount"]   = amount;
+
+	return results;
+
 	
 # Checks if an inventory item can fit into a specific slot. This function is mainly used for
 # moving items that are already in the inventory around.
@@ -375,21 +415,83 @@ func can_stack_fit(stack_id, slot, mask = []):
 		return true;
 
 	return false;
+
+func get_item_uid(stack_id):
+	var stack = get_stack_from_id(stack_id);
+	if(stack):
+		return stack.get_item_uid();
+	return "";
 	
 func clear_inventory():
 	# TODO: Cleaner cleanup; send corresponding signal out to inform listeners of 
 	#       each stack that was removed.
 	_inventory.clear();
 
-func transfer(from_backend, amount, stack_id = 0, to_slot = Vector2(-1, -1)):
-	# If transfer requested from internal backend then refer to moving item
+
+#==========================================================================
+# Generic Backend Functions
+#==========================================================================
+
+func transfer(from_backend, to_slot, amount, item_uid, transfer_data):
+	# Different strategy if moving internally
 	if(from_backend == self):
-		return move_item(stack_id, to_slot, amount);
+		move_item(transfer_data["stack_id"], to_slot, amount);
+	else:
 
-	var fetch_result = from_backend.fetch_stack(amount, stack_id);
+		# Confer with the originating backend that this is a valid transfer
+		var validate_result = from_backend.validate_transfer(amount, item_uid, transfer_data);
+		if(validate_result == true):
+			# Check if the item fit will in here
+			var dry_run_results = dry_run_item_at(item_uid, to_slot, amount);
+			print(dry_run_results);
 
-	if(fetch_result["item_uid"] != ""):
-		add_item_at(fetch_result["item_uid"], to_slot, amount);
+			# No obstructions, add it to the 
+
+# Just a security measure to enture that the backend has the item & stack available
+func can_transfer(amount, transfer_data):
+	var stack = get_stack_from_id(transfer_data["stack_id"]);
+
+	# Check if stack has the right stack size
+	if(stack.get_stack_size() <= amount):
+		return true;
+	return false;
+
+func validate_transfer(amount, item_uid, transfer_data):
+	if(!transfer_data.has("stack_id")):
+		return false;
+
+	var stack = get_stack_from_id(transfer_data["stack_id"]);
+	if(stack.get_stack_size() >= amount):
+		return true;
+	return false;
+
+func handle_transfer(amount, transfer_data):
+	return {
+		"item_uid": "",
+		"amount": 0
+	};
+
+
+# Transfers an item around internally and externally. Usually called from frontend when a drop happens.
+# func transfer(from_backend, amount = -1, stack_id = 0, to_slot = Vector2(-1, -1)):
+# 	pass;
+# 	# If transfer requested from internal backend then refer to moving item
+# 	if(from_backend == self):
+# 		return move_item(stack_id, to_slot, amount);
+
+		
+# 	# Add the item to the inventory at the temp slot
+# 	var item_uid = from_backend.get_item_uid(stack_id);
+# 	var new_stack_id = add_item(item_uid, amount);
+
+# 	# Attempt to move the newly added stack into position
+# 	var move_result = move_item(new_stack_id, to_slot);
+# 	if(move_result["moved"] > 0):
+# 		var fetch_result = from_backend.fetch_stack(amount, stack_id);
+# 	else:
+# 		remove_item(new_stack_id);
+
+
 
 # Usually called from another backend instance to request parts or all of a specific stack.
 # Take care as this is a destructive call.
@@ -439,6 +541,13 @@ func get_id_at_slot(slot):
 	return -1;
 
 func get_inventory_item_at_slot(slot):
+	var id = get_id_at_slot(slot);
+	if(id == -1):
+		return null;
+
+	return _inventory[id];
+
+func get_stack_at(slot):
 	var id = get_id_at_slot(slot);
 	if(id == -1):
 		return null;

@@ -126,7 +126,7 @@ func drop_data_fw(position, data, from_control):
 	_dropped_internally = true;
 	
 	# Request a transfer from the backend
-	_backend.transfer(data["backend"], data["stack_size"], data["stack_id"]);
+	_backend.transfer_from_simple_slot(data["backend"], data["stack_size"], data["stack_id"]);
 	
 	# Notify the source
 	var frontend = data["frontend"];
