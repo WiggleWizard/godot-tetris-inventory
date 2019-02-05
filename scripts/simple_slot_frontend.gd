@@ -4,9 +4,6 @@ class_name ItemDropZone
 
 
 export(NodePath) var backend;
-export(bool) var remove_from_source = false;
-export(bool) var allow_drop_swapping = true;
-export(Array, String) var inclusive_filter = [];
 export(PackedScene) var display_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
 export(Vector2) var drag_slot_size = Vector2(64, 64);
 
@@ -14,9 +11,6 @@ signal item_dropped;
 signal item_removed;
 
 var _backend = null;
-
-var _item_uid   = "";
-var _stack_size = 1;
 
 # A Control node that sinks all mouse events so the developer decorate the zone
 # however.
@@ -30,9 +24,6 @@ var _drop_fw = false;
 #==========================================================================
 # Public
 #==========================================================================
-
-func get_curr_item_uid():
-	return _item_uid;
 
 
 #==========================================================================
@@ -56,6 +47,7 @@ func dropped_item_from_inventory(item_uid, stack_size = 1):
 
 func _ready():
 	set_process(false);
+
 	
 	_container       = Container.new();
 	_mouse_sink_node = Control.new();
@@ -67,9 +59,10 @@ func _ready():
 	_container.set_mouse_filter(MOUSE_FILTER_IGNORE);
 	_mouse_sink_node.set_drag_forwarding(self);
 	_mouse_sink_node.set_anchors_and_margins_preset(Control.PRESET_WIDE);
-
+	
 	if(backend):
 		_backend = get_node(backend);
+		_backend.connect("item_changed", self, "item_changed");
 	
 func _process(delta):
 	var viewport = get_viewport();
@@ -126,7 +119,10 @@ func drop_data_fw(position, data, from_control):
 	_dropped_internally = true;
 	
 	# Request a transfer from the backend
-	_backend.transfer_from_simple_slot(data["backend"], data["stack_size"], data["stack_id"]);
+	var transfer_data = {}
+	if(data.has("stack_id")):
+		transfer_data["stack_id"] = data["stack_id"];
+	_backend.transfer(data["backend"], data["item_uid"], transfer_data);
 	
 	# Notify the source
 	var frontend = data["frontend"];
@@ -145,6 +141,9 @@ func gutter_drop():
 #==========================================================================
 # Private Internal
 #==========================================================================
+
+func item_changed():
+	print("HERE");
 
 func _is_drop_data_valid(data):
 	if(!data && (!data.has("source") || !data.has("source_node") || !data.has("item_uid"))):

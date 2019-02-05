@@ -9,6 +9,7 @@ export(Array, String) var inclusive_filter = [];
 var _backend_type = "SimpleSlot";
 
 var _item_uid = "";
+var _stack_size = 0;
 
 signal item_changed;
 
@@ -18,7 +19,7 @@ signal item_changed;
 #==========================================================================
 
 # Fetches the item UID that's in this slot
-func get_item_uid(stack_id = 0):
+func get_item_uid():
 	return _item_uid;
 
 
@@ -45,21 +46,21 @@ func is_item_allowed(item_uid):
 		
 	return is_allowed;
 
-func transfer(from_backend, amount, stack_id = 0, to_slot = Vector2(-1, -1)):
-	var fetch_result = from_backend.fetch_stack(1, stack_id);
-	_item_uid = fetch_result["item_uid"];
+func transfer(from_backend, item_uid, transfer_data):
+	var validate_result = from_backend.validate_transfer(1, item_uid, transfer_data);
+	if(validate_result == true):
+		from_backend.handle_transfer(1, transfer_data);
 
-	emit_signal("item_changed");
+		_item_uid = item_uid;
+		emit_signal("item_changed");
 
-func fetch_stack(amount, stack_id = 0):
-	var fetch_result = {
-		"item_uid": _item_uid,
-		"amount": 1
-	};
+func validate_transfer(amount, item_uid, transfer_data):
+	if(amount == 1 && _item_uid == item_uid):
+		return true;
+	return false;
 
+func handle_transfer(amount, transfer_data):
 	_item_uid = "";
-
-	return fetch_result;
 
 func get_base_drag_data():
 	if(!has_valid_item()):
