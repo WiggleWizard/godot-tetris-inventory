@@ -2,9 +2,9 @@ extends Node
 
 class_name SimpleSlotBackend
 
-export(bool) var remove_from_source = false;
-export(bool) var allow_drop_swapping = true;
-export(Array, String) var inclusive_filter = [];
+export(bool) var remove_from_source          = true;
+export(bool) var allow_drop_swapping         = true;
+export(PoolStringArray) var inclusive_filter = PoolStringArray();
 
 var _backend_type = "SimpleSlot";
 
@@ -38,9 +38,12 @@ func is_item_allowed(item_uid):
 	
 	var is_allowed = false;
 	if(inclusive_filter.size() > 0):
-		var item = ItemDatabase.get_item(item_uid);
-		if(inclusive_filter.find(item.get_type()) > -1):
-			is_allowed = true;
+		var item      = ItemDatabase.get_item(item_uid);
+		var item_type = item.get_type();
+		for s in inclusive_filter:
+			if(s == item_type):
+				is_allowed = true;
+				break;
 	else:
 		is_allowed = true;
 		

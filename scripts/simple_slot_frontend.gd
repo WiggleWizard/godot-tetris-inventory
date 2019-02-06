@@ -1,13 +1,19 @@
+
+tool
 extends Control
 
 class_name ItemDropZone
 
 
-export(NodePath) var backend;
-export(Color) var valid_color = Color(0, 1, 0, 0.5);
-export(Color) var invalid_color = Color(1, 0, 0, 0.5);
+export(Color) var valid_color         = Color(0, 1, 0, 0.5);
+export(Color) var invalid_color       = Color(1, 0, 0, 0.5);
 export(PackedScene) var display_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
-export(Vector2) var drag_slot_size = Vector2(64, 64);
+export(Vector2) var drag_slot_size    = Vector2(64, 64);
+
+var backend             = null setget backend_set;
+var remove_from_source  = true;
+var allow_drop_swapping = true;
+var inclusive_filter    = PoolStringArray();
 
 signal item_dropped;
 signal item_removed;
@@ -21,12 +27,15 @@ var _mouse_sink_node = null;
 var _move_indicator  = null;
 
 var _dropped_internally = false;
-var _drop_fw = false;
+var _drop_fw            = false;
 
 
 #==========================================================================
 # Public
 #==========================================================================
+
+func get_backend():
+	return _backend;
 
 
 #==========================================================================
@@ -48,9 +57,11 @@ func dropped_item_from_inventory(item_uid, stack_size = 1):
 # Events
 #==========================================================================
 
+func _init():
+	property_list_changed_notify();
+
 func _ready():
 	set_process(false);
-
 	
 	_container       = Container.new();
 	_mouse_sink_node = Control.new();
@@ -69,9 +80,15 @@ func _ready():
 	_move_indicator.set_mouse_filter(MOUSE_FILTER_IGNORE);
 	_move_indicator.set_anchors_and_margins_preset(Control.PRESET_WIDE);
 	
-	if(backend):
+	if(!backend):
+		_backend = SimpleSlotBackend.new();
+		_backend.remove_from_source  = remove_from_source;
+		_backend.allow_drop_swapping = allow_drop_swapping;
+		_backend.inclusive_filter    = inclusive_filter;
+	else:
 		_backend = get_node(backend);
-		_backend.connect("item_changed", self, "item_changed");
+
+	_backend.connect("item_changed", self, "item_changed");
 	
 func _process(delta):
 	var viewport = get_viewport();
@@ -89,6 +106,41 @@ func _process(delta):
 		_drop_fw = false;
 		
 		set_process(false);
+		
+func _get_property_list():
+	if(!backend):
+		return [
+			{
+				"name": "backend",
+				"type": TYPE_NODE_PATH
+			},
+			{
+				"name": "remove_from_source",
+				"type": TYPE_BOOL,
+				"usage": PROPERTY_USAGE_DEFAULT
+			},
+			{
+				"name": "allow_drop_swapping",
+				"type": TYPE_BOOL,
+				"usage": PROPERTY_USAGE_DEFAULT
+			},
+			{
+				"name": "inclusive_filter",
+				"type": TYPE_STRING_ARRAY,
+				"usage": PROPERTY_USAGE_DEFAULT
+			},
+		];
+	else:
+		return [
+			{
+				"name": "backend",
+				"type": TYPE_NODE_PATH
+			}
+		];
+		
+func backend_set(new_backend):
+	backend = new_backend;
+	property_list_changed_notify();
 
 func mouse_exited():
 	_move_indicator.set_visible(false);
