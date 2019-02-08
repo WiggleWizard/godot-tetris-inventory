@@ -269,7 +269,7 @@ func get_child_count():
 	return result;
 
 func get_child(idx):
-	if(!Engine.is_editor_hint()):
-		return .get_child(idx + 3);
-	else:
-		return .get_child(0);
+	var child = .get_child(idx);
+	if(child == _container && child == _mouse_sink_node && child == _move_indicator):
+		return null;
+	return child;
