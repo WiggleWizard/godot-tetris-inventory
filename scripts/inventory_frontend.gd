@@ -12,6 +12,7 @@ export(Color) var stack_move_color = Color(1, 1, 0, 0.5);
 export(Color) var invalid_move_color = Color(1, 0, 0, 0.5);
 export(float) var drag_alpha = 0;
 export(PackedScene) var inventory_component_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
+export(PackedScene) var tooltip_scene = preload("res://addons/tetris-inventory/scenes/default_tooltip_scene.tscn");
 
 var _backend = null;
 var _stack_node_mapping = {};
@@ -21,12 +22,18 @@ var _mouse_sink_node = null;
 var _move_indicator  = null;
 
 
-var _drag_data = null;
-var _dropped_in_drop_zone = false;
+var _drag_data      = null;
 var _prev_drag_slot = Vector2(-1, -1);
 
+var _process_drop       = false;
 var _dropped_internally = false;
-var _drop_fw = false;
+var _drop_fw            = false;
+
+var _curr_mouse_slot  = Vector2(-1, -1);
+var _curr_hover_stack = null;
+
+var _tooltip_timer = Timer.new();
+var _tooltip_node;
 
 
 #==========================================================================
@@ -36,6 +43,13 @@ var _drop_fw = false;
 # Returns the actual node thats mapped to the inventory item ID
 func get_mapped_node(stack_id):
 	return _stack_node_mapping[stack_id];
+
+func get_mapped_node_stack_id(node):
+	for i in _stack_node_mapping:
+		if(_stack_node_mapping[i] == node):
+			return i;
+
+	return -1;
 	
 func get_slot_from_position(position):
 	return Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
@@ -56,7 +70,6 @@ func item_added(stack):
 	if(item):
 		var inventory_size = item.get_size();
 		
-		var display_data = item.fetch_inventory_display_data();
 		var new_scene = inventory_component_scene.instance();
 		new_scene.set_display_data(item.get_uid(), stack.get_stack_size(), stack.get_max_stack_size(), "inventory");
 		
@@ -100,8 +113,6 @@ func stack_removed(stack):
 #==========================================================================	
 	
 func _ready():
-	set_process(false);
-	
 	_container       = Container.new();
 	_mouse_sink_node = Container.new();
 	_move_indicator  = ColorRect.new();
@@ -115,12 +126,17 @@ func _ready():
 	_container.set_anchors_and_margins_preset(PRESET_WIDE);
 	_container.set_mouse_filter(MOUSE_FILTER_IGNORE);
 	_mouse_sink_node.set_anchors_and_margins_preset(PRESET_WIDE);
-	_mouse_sink_node.set_drag_forwarding(self);
-	_mouse_sink_node.set_mouse_filter(MOUSE_FILTER_STOP);
+	_mouse_sink_node.set_mouse_filter(MOUSE_FILTER_PASS);
 	_mouse_sink_node.connect("mouse_exited", self, "_on_mouse_exited");
 	_move_indicator.set_visible(false);
 	_move_indicator.set_mouse_filter(MOUSE_FILTER_IGNORE);
-	
+
+	_tooltip_timer.one_shot = true;
+	_tooltip_timer.wait_time = 1;
+	_tooltip_timer.connect("timeout", self, "_tooltip_timer_timeout");
+	_tooltip_timer.stop();
+	add_child(_tooltip_timer);
+
 	if(!inventory_backend):
 		printerr("Inventory Frontend has no Backend associated");
 		return;
@@ -136,24 +152,101 @@ func _ready():
 		
 
 func _process(delta):
-	var viewport = get_viewport();
-	if(!viewport.gui_is_dragging()):
-		if(_dropped_internally == true):
-			pass;
-		elif(_drop_fw == true):
-			pass;
-		else:
-			gutter_drop();
+	if(_process_drop):
+		var viewport = get_viewport();
+		if(!viewport.gui_is_dragging()):
+			if(_dropped_internally == true):
+				pass;
+			elif(_drop_fw == true):
+				pass;
+			else:
+				gutter_drop();
+				
+			_dropped_internally = false;
+			_drop_fw            = false;
+			_drag_data          = {};
 			
-		_dropped_internally = false;
-		_drop_fw = false;
-		_drag_data = {};
-		
-		set_process(false);
+			_process_drop = false;
+
+func _on_mouse_entered():
+	pass;
 
 func _on_mouse_exited():
 	_move_indicator.set_visible(false);
-	_prev_drag_slot = Vector2(-1, -1);
+	_prev_drag_slot   = Vector2(-1, -1);
+	_curr_mouse_slot  = Vector2(-1, -1);
+	_curr_hover_stack = null;
+
+	# Remove the tooltip
+	if(_tooltip_node):
+		_tooltip_node.queue_free();
+		_tooltip_node = null;
+
+	_tooltip_timer.stop();
+
+func _gui_input(event):
+	if(event is InputEventMouseMotion):
+		if(_tooltip_node):
+			_tooltip_node.set_position(get_global_mouse_position());
+
+		var curr_slot = (event.position/slot_size);
+		curr_slot = curr_slot.floor();
+		
+		if(curr_slot != _curr_mouse_slot):
+			_curr_mouse_slot = curr_slot;
+			_mouse_change_slot(curr_slot);
+
+# Called when the mouse cursor moves into a new slot.
+func _mouse_change_slot(slot):
+	var viewport = get_viewport();
+	if(viewport && viewport.gui_is_dragging()):
+		drag_hover(slot, viewport.gui_get_drag_data());
+		return;
+		
+	# Check which stack node we are hovering over
+	var valid_hover = false;
+	for child in _container.get_children():
+		if(child.get_rect().has_point(get_local_mouse_position())):
+			if(_curr_hover_stack != child):
+				_curr_hover_stack = child;
+				_hover_change(get_mapped_node_stack_id(_curr_hover_stack));
+
+			valid_hover = true;
+
+			break;
+
+	if(!valid_hover):
+		_hover_change(-1);
+
+func _hover_change(stack_id):
+	if(stack_id == -1):
+		if(_tooltip_node):
+			_tooltip_node.queue_free();
+			_tooltip_node = null;
+
+		return;
+		
+	if(_tooltip_node):
+		_tooltip_node.queue_free();
+		_tooltip_node = null;
+
+	_tooltip_timer.stop();
+	_tooltip_timer.set_wait_time(1);
+	_tooltip_timer.start();
+
+func _tooltip_timer_timeout():
+	if(!_tooltip_node):
+		_tooltip_node = tooltip_scene.instance();
+		_tooltip_node.set_mouse_filter(MOUSE_FILTER_IGNORE);
+		
+		# Fetch the top most node
+		var top_most_node = self;
+		var root = get_tree().get_root();
+		while(top_most_node.get_parent() != root):
+			top_most_node = top_most_node.get_parent();
+		
+		top_most_node.add_child(_tooltip_node);
+		_tooltip_node.set_position(get_global_mouse_position());
 	
 func _draw():
 	# Draw inventory grid lines for debug
@@ -184,7 +277,13 @@ func _draw():
 	
 # Called when the player starts dragging
 func get_drag_data(position):
-	set_process(true);
+	_process_drop = true;
+
+	# Remove the tooltip
+	if(_tooltip_node):
+		_tooltip_node.queue_free();
+		_tooltip_node = null;
+	_tooltip_timer.stop();
 
 	# Figure out which slot the player started dragging
 	var drag_start_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
@@ -234,18 +333,18 @@ func get_drag_data(position):
 	
 # Called while user is dragging the Node over the inventory
 func can_drop_data(position, data):
-	var mouse_curr_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
+	#var mouse_curr_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
 		
 	# Since we don't need to run this code every time the mouse moves, we can do some
 	# simple calculation to figure out if the mouse has changed slots.
-	if(_prev_drag_slot != mouse_curr_slot):
-		drag_hover(position, mouse_curr_slot, data);
+	#if(_prev_drag_slot != mouse_curr_slot):
+	#	drag_hover(position, mouse_curr_slot, data);
 	
-	_prev_drag_slot = mouse_curr_slot;
+	#_prev_drag_slot = mouse_curr_slot;
 			
 	return true;
 	
-func drag_hover(position, slot, data):
+func drag_hover(slot, data):
 	if(data["source"] == "inventory"):
 		var frontend       = data["frontend"];
 		var item           = ItemDatabase.get_item(data["item_uid"]);
@@ -289,6 +388,9 @@ func drag_hover(position, slot, data):
 			_move_indicator.set_frame_color(invalid_move_color);
 
 func drop_data(position, data):
+	# Allow the tooltips again
+	_tooltip_timer.start();
+
 	if(!_is_drop_data_valid(data)):
 		return;
 
@@ -307,11 +409,11 @@ func drop_data(position, data):
 	# If the source of the drag was internal then set flag
 	if(from_frontend == self):
 		_dropped_internally = true;
-	# Curtesy call source node
 	elif(from_frontend != self && from_frontend.has_method("drop_fw")):
+		# Curtesy call source node
 		from_frontend.drop_fw(self);
 
-	_move_indicator.set_visible(false); 
+	_move_indicator.set_visible(false);
 	
 # Curtesy call from controls that have had the item from this Node dropped into.	
 func drop_fw(from_control):
