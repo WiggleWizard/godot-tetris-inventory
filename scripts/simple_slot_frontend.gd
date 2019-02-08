@@ -49,8 +49,7 @@ func drag_hover(allow, data):
 	
 # Public callback for when an item has been dropped from an inventory.
 func dropped_item_from_inventory(item_uid, stack_size = 1):
-	pass;
-	
+	pass;	
 	
 
 #==========================================================================
@@ -61,35 +60,40 @@ func _init():
 	property_list_changed_notify();
 
 func _ready():
-	set_process(false);
-	
-	_container       = Container.new();
-	_mouse_sink_node = Control.new();
-	_move_indicator  = ColorRect.new();
-	
-	add_child(_container);
-	add_child(_mouse_sink_node);
-	add_child(_move_indicator);
-	
-	_container.set_anchors_and_margins_preset(PRESET_WIDE);
-	_container.set_mouse_filter(MOUSE_FILTER_IGNORE);
-	_mouse_sink_node.set_drag_forwarding(self);
-	_mouse_sink_node.set_anchors_and_margins_preset(Control.PRESET_WIDE);
-	_mouse_sink_node.connect("mouse_exited", self, "mouse_exited");
-	_move_indicator.set_visible(false);
-	_move_indicator.set_mouse_filter(MOUSE_FILTER_IGNORE);
-	_move_indicator.set_anchors_and_margins_preset(Control.PRESET_WIDE);
-	
-	if(!backend):
-		_backend = SimpleSlotBackend.new();
-		_backend.remove_from_source  = remove_from_source;
-		_backend.allow_drop_swapping = allow_drop_swapping;
-		_backend.inclusive_filter    = inclusive_filter;
-	else:
-		_backend = get_node(backend);
+	if(Engine.is_editor_hint()):
+		set_process(false);
 
-	_backend.connect("item_changed", self, "item_changed");
+	if(!Engine.is_editor_hint()):
+		_container = Container.new();
+		_container.set_name("Container");
+		add_child(_container);
+		_mouse_sink_node = Control.new();
+		_mouse_sink_node.set_name("Mouse Sink");
+		add_child(_mouse_sink_node);
+		_move_indicator = ColorRect.new();
+		_move_indicator.set_name("Move Indicator");
+		add_child(_move_indicator);
+		
+		_container.set_anchors_and_margins_preset(PRESET_WIDE);
+		_container.set_mouse_filter(MOUSE_FILTER_IGNORE);
+		_mouse_sink_node.set_drag_forwarding(self);
+		_mouse_sink_node.set_mouse_filter(MOUSE_FILTER_STOP);
+		_mouse_sink_node.set_anchors_and_margins_preset(Control.PRESET_WIDE);
+		_mouse_sink_node.connect("mouse_exited", self, "mouse_exited");
+		_move_indicator.set_visible(false);
+		_move_indicator.set_mouse_filter(MOUSE_FILTER_IGNORE);
+		_move_indicator.set_anchors_and_margins_preset(Control.PRESET_WIDE);
 	
+		if(!backend):
+			_backend = SimpleSlotBackend.new();
+			_backend.remove_from_source  = remove_from_source;
+			_backend.allow_drop_swapping = allow_drop_swapping;
+			_backend.inclusive_filter    = inclusive_filter;
+		else:
+			_backend = get_node(backend);
+
+		_backend.connect("item_changed", self, "item_changed");
+
 func _process(delta):
 	var viewport = get_viewport();
 	if(!viewport.gui_is_dragging()):
@@ -144,6 +148,7 @@ func backend_set(new_backend):
 
 func mouse_exited():
 	_move_indicator.set_visible(false);
+
 
 #==========================================================================
 # Drag Drop
@@ -243,3 +248,28 @@ func _is_drop_data_valid(data):
 		return false;
 		
 	return true;
+
+
+#==========================================================================
+# Heirarchy Mangling
+#==========================================================================	
+
+func get_children():
+	var result = [];
+	for child in .get_children():
+		if(child != _container && child != _mouse_sink_node && child != _move_indicator):
+			result.append(child);
+	return result;
+	
+func get_child_count():
+	var result = 0;
+	for child in .get_children():
+		if(child != _container && child != _mouse_sink_node && child != _move_indicator):
+			result += 1;
+	return result;
+
+func get_child(idx):
+	if(!Engine.is_editor_hint()):
+		return .get_child(idx + 3);
+	else:
+		return .get_child(0);
