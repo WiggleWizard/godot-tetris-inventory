@@ -197,7 +197,6 @@ func _mouse_change_slot(slot):
 	var viewport = get_viewport();
 	if(viewport && viewport.gui_is_dragging()):
 		drag_hover(slot, viewport.gui_get_drag_data());
-		return;
 		
 	# Check which stack node we are hovering over
 	var valid_hover = false;
@@ -229,7 +228,8 @@ func _hover_change(node):
 
 	_tooltip_timer.stop();
 	_tooltip_timer.set_wait_time(tooltip_time);
-	_tooltip_timer.disconnect("timeout", self, "_tooltip_timer_timeout");
+	if(_tooltip_timer.is_connected("timeout", self, "_tooltip_timer_timeout")):
+		_tooltip_timer.disconnect("timeout", self, "_tooltip_timer_timeout");
 	_tooltip_timer.connect("timeout", self, "_tooltip_timer_timeout", [stack_id]);
 	_tooltip_timer.start();
 
@@ -250,7 +250,6 @@ func _tooltip_timer_timeout(stack_id):
 			_tooltip_node.set_display_item(item);
 		
 		top_most_node.add_child(_tooltip_node);
-		print(_tooltip_node.get_rect().size);
 		_tooltip_node.set_position(get_global_mouse_position() - _tooltip_node.get_rect().size);
 		
 	
@@ -394,13 +393,12 @@ func drag_hover(slot, data):
 			_move_indicator.set_frame_color(invalid_move_color);
 
 func drop_data(position, data):
-	# Allow the tooltips again
-	_tooltip_timer.start();
-
 	if(!_is_drop_data_valid(data)):
 		return;
 
 	var slot = get_slot_from_position(position);
+
+	_tooltip_timer.start();
 	
 	var from_frontend = data["frontend"];
 	var from_backend  = data["backend"];
