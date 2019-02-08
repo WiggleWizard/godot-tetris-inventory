@@ -1,17 +1,17 @@
-[gd_scene load_steps=3 format=2]
-
-[ext_resource path="res://addons/tetris-inventory/scripts/display_item.gd" type="Script" id=1]
-
-[sub_resource type="GDScript" id=1]
-
-script/source = "tool
-extends Control
+tool
+extends MarginContainer
 
 export(Color) var outline_color = Color(1, 1, 1, 0.5) setget set_color;
 export(int) var outline_width = 1 setget set_width;
+export(Color) var background_color = Color(0, 0, 0, 0.5) setget set_bg_color;
 
 func _draw():
 	var rect = get_rect();
+	var local_rect = get_rect();
+	local_rect.position = Vector2(0, 0);
+	
+	draw_rect(local_rect, background_color);
+	
 	var f_outline_width = float(outline_width);
 	# Left
 	draw_line(Vector2(f_outline_width / 2, f_outline_width), Vector2(f_outline_width / 2, rect.size.y - f_outline_width), outline_color, outline_width);
@@ -23,38 +23,18 @@ func _draw():
 	# Bottom
 	draw_line(Vector2(0, rect.size.y - f_outline_width / 2), Vector2(rect.size.x, rect.size.y - f_outline_width / 2), outline_color, outline_width);
 	
+	
 func set_color(color):
     outline_color = color;
     update();
 	
 func set_width(new_width):
 	outline_width = new_width;
-	update();"
-
-[node name="DefaultInventoryItem" type="Control"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-script = ExtResource( 1 )
-
-[node name="Border" type="Control" parent="."]
-anchor_right = 1.0
-anchor_bottom = 1.0
-hint_tooltip = "Test"
-script = SubResource( 1 )
-
-[node name="Sprite" type="Sprite" parent="."]
-scale = Vector2( 0.3, 0.3 )
-centered = false
-region_enabled = true
-
-[node name="Label" type="Label" parent="."]
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-margin_left = -8.0
-margin_top = -14.0
-grow_horizontal = 0
-text = "1"
-align = 2
-
+	update();
+	
+func set_bg_color(new_color):
+	background_color = new_color;
+	update();
+	
+func set_display_item(item):
+	$Label.set_text(item.get_name());

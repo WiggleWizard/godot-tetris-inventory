@@ -13,6 +13,7 @@ export(Color) var invalid_move_color = Color(1, 0, 0, 0.5);
 export(float) var drag_alpha = 0;
 export(PackedScene) var inventory_component_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
 export(PackedScene) var tooltip_scene = preload("res://addons/tetris-inventory/scenes/default_tooltip_scene.tscn");
+export(float) var tooltip_time = 0.5;
 
 var _backend = null;
 var _stack_node_mapping = {};
@@ -132,8 +133,6 @@ func _ready():
 	_move_indicator.set_mouse_filter(MOUSE_FILTER_IGNORE);
 
 	_tooltip_timer.one_shot = true;
-	_tooltip_timer.wait_time = 1;
-	_tooltip_timer.connect("timeout", self, "_tooltip_timer_timeout");
 	_tooltip_timer.stop();
 	add_child(_tooltip_timer);
 
@@ -168,9 +167,6 @@ func _process(delta):
 			
 			_process_drop = false;
 
-func _on_mouse_entered():
-	pass;
-
 func _on_mouse_exited():
 	_move_indicator.set_visible(false);
 	_prev_drag_slot   = Vector2(-1, -1);
@@ -187,7 +183,7 @@ func _on_mouse_exited():
 func _gui_input(event):
 	if(event is InputEventMouseMotion):
 		if(_tooltip_node):
-			_tooltip_node.set_position(get_global_mouse_position());
+			_tooltip_node.set_position(get_global_mouse_position() - _tooltip_node.get_rect().size);
 
 		var curr_slot = (event.position/slot_size);
 		curr_slot = curr_slot.floor();
@@ -209,33 +205,36 @@ func _mouse_change_slot(slot):
 		if(child.get_rect().has_point(get_local_mouse_position())):
 			if(_curr_hover_stack != child):
 				_curr_hover_stack = child;
-				_hover_change(get_mapped_node_stack_id(_curr_hover_stack));
+				_hover_change(_curr_hover_stack);
 
 			valid_hover = true;
 
 			break;
 
 	if(!valid_hover):
-		_hover_change(-1);
+		_curr_hover_stack = null;
+		_hover_change(null);
 
-func _hover_change(stack_id):
-	if(stack_id == -1):
-		if(_tooltip_node):
+func _hover_change(node):
+	var stack_id = -1;
+	if(node != null):
+		stack_id = get_mapped_node_stack_id(node);
+		if(_tooltip_node && stack_id != -1):
 			_tooltip_node.queue_free();
 			_tooltip_node = null;
-
-		return;
 		
 	if(_tooltip_node):
 		_tooltip_node.queue_free();
 		_tooltip_node = null;
 
 	_tooltip_timer.stop();
-	_tooltip_timer.set_wait_time(1);
+	_tooltip_timer.set_wait_time(tooltip_time);
+	_tooltip_timer.disconnect("timeout", self, "_tooltip_timer_timeout");
+	_tooltip_timer.connect("timeout", self, "_tooltip_timer_timeout", [stack_id]);
 	_tooltip_timer.start();
 
-func _tooltip_timer_timeout():
-	if(!_tooltip_node):
+func _tooltip_timer_timeout(stack_id):
+	if(!_tooltip_node && stack_id != -1):
 		_tooltip_node = tooltip_scene.instance();
 		_tooltip_node.set_mouse_filter(MOUSE_FILTER_IGNORE);
 		
@@ -245,8 +244,15 @@ func _tooltip_timer_timeout():
 		while(top_most_node.get_parent() != root):
 			top_most_node = top_most_node.get_parent();
 		
+		if(_tooltip_node.has_method("set_display_item")):
+			var stack = _backend.get_stack_from_id(stack_id);
+			var item = stack.get_item();
+			_tooltip_node.set_display_item(item);
+		
 		top_most_node.add_child(_tooltip_node);
-		_tooltip_node.set_position(get_global_mouse_position());
+		print(_tooltip_node.get_rect().size);
+		_tooltip_node.set_position(get_global_mouse_position() - _tooltip_node.get_rect().size);
+		
 	
 func _draw():
 	# Draw inventory grid lines for debug
