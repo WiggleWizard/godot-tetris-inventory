@@ -2,7 +2,7 @@
 tool
 extends Control
 
-class_name ItemDropZone
+class_name SimpleSlot
 
 
 export(Color) var valid_color         = Color(0, 1, 0, 0.5);
