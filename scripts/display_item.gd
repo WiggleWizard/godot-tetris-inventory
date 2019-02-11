@@ -21,8 +21,7 @@ func stack_size_changed(new_size):
 func _ready():
 	$Label.set_text(str(_stack_size));
 	
-	if(_location == "dragging"):
-		$Border.set_visible(false);
+
 		
 	if(_max_stack_size == 1):
 		$Label.set_visible(false);

@@ -1,4 +1,4 @@
-tool
+tool 
 extends Control
 
 class_name InventoryFrontend
@@ -18,7 +18,7 @@ export(float) var tooltip_time = 0.5;
 export(bool) var enable_guides   = false setget set_enable_guides;
 export(Color) var guide_color    = Color(1, 1, 1, 0.1) setget set_guide_color;
 export(bool) var lock_rect_ratio = true setget set_lock_rect_ratio;
-var slot_size = 64;
+var slot_size = 64.0;
 
 
 var _backend = null;
@@ -108,7 +108,7 @@ func set_lock_rect_ratio(lock_rect_ratio_on):
 	lock_rect_ratio = lock_rect_ratio_on;
 	
 	if(lock_rect_ratio && !is_connected("resized", self, "_resized")):
-		connect("resized", self, "_resized");
+		var _t = connect("resized", self, "_resized");
 		emit_signal("resized");
 	else:
 		disconnect("resized", self, "_resized");
@@ -121,7 +121,7 @@ func set_lock_rect_ratio(lock_rect_ratio_on):
 # Inventory Backend Events
 #==========================================================================	
 
-func inventory_size_changed(new_size):
+func inventory_size_changed(_new_size):
 	update();
 	emit_signal("resized");
 
@@ -212,8 +212,9 @@ func _ready():
 			printerr("Inventory Frontend has no Backend associated");
 			return;
 			
+	# Hook the resized signal
 	if(lock_rect_ratio && !is_connected("resized", self, "_resized")):
-		connect("resized", self, "_resized");
+		var _t = connect("resized", self, "_resized");
 
 func _process(_delta):
 	if(_process_drop):
@@ -253,16 +254,16 @@ func _gui_input(event):
 		var curr_slot = (event.position/slot_size);
 		curr_slot = curr_slot.floor();
 		
+		var viewport = get_viewport();
+		if(viewport && viewport.gui_is_dragging()):
+			drag_hover(event.position, curr_slot, viewport.gui_get_drag_data());
+		
 		if(curr_slot != _curr_mouse_slot):
 			_curr_mouse_slot = curr_slot;
 			_mouse_change_slot(curr_slot);
 
 # Called when the mouse cursor moves into a new slot.
-func _mouse_change_slot(slot):
-	var viewport = get_viewport();
-	if(viewport && viewport.gui_is_dragging()):
-		drag_hover(slot, viewport.gui_get_drag_data());
-		
+func _mouse_change_slot(_slot):
 	# Check which stack node we are hovering over
 	var valid_hover = false;
 	for child in _container.get_children():
@@ -350,8 +351,9 @@ func get_drag_data(position):
 			
 			# Populate the drag data
 			var base_drag_data = _backend.get_base_drag_data(drag_start_slot, drag_modifier);
-			base_drag_data["frontend"]    = self;
-			base_drag_data["mapped_node"] = mapped_node;
+			base_drag_data["frontend"]          = self;
+			base_drag_data["mapped_node"]       = mapped_node;
+			base_drag_data["mouse_down_offset"] = position - mapped_node.get_rect().position;
 			_drag_data = base_drag_data;
 			
 			# If we are dragging the whole stack then hide it
@@ -378,25 +380,16 @@ func get_drag_data(position):
 	
 	return null;
 	
-# Called while user is dragging the Node over the inventory
 func can_drop_data(_position, _data):
-	#var mouse_curr_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
-		
-	# Since we don't need to run this code every time the mouse moves, we can do some
-	# simple calculation to figure out if the mouse has changed slots.
-	#if(_prev_drag_slot != mouse_curr_slot):
-	#	drag_hover(position, mouse_curr_slot, data);
-	
-	#_prev_drag_slot = mouse_curr_slot;
-			
 	return true;
 	
-func drag_hover(slot, data):
+# Called while user is dragging the Node over the inventory
+func drag_hover(position, slot, data):
 	if(data["source"] == "inventory"):
 		var frontend       = data["frontend"];
 		var item           = ItemDatabase.get_item(data["item_uid"]);
 		var item_slot_size = item.get_size();
-		var offset_slot    = slot - Vector2(0, 0);
+		var offset_slot    = ((position - data["mouse_down_offset"]) / slot_size).round();
 
 		# Draw move indicator in the right place
 		_move_indicator.set_visible(true);
@@ -438,7 +431,7 @@ func drop_data(position, data):
 	if(!_is_drop_data_valid(data)):
 		return;
 
-	var slot = get_slot_from_position(position);
+	var slot = ((position - data["mouse_down_offset"]) / slot_size).round();
 
 	_tooltip_timer.start();
 	
@@ -547,7 +540,7 @@ func _draw():
 			var end   = Vector2(inventory_size.x * slot_size, i * slot_size);
 			draw_line(start, end, guide_color);
 			
-		draw_rect(Rect2(1, 1, inventory_size.x * slot_size, inventory_size.y * slot_size), guide_color, false);
+		draw_rect(Rect2(1, 1, inventory_size.x * slot_size - 1, inventory_size.y * slot_size - 1), guide_color, false);
 		
 func _get_property_list():
 	if(!lock_rect_ratio):
