@@ -2,7 +2,6 @@ extends Node
 
 class_name SimpleSlotBackend
 
-export(bool) var remove_from_source          = true;
 export(bool) var allow_drop_swapping         = true;
 export(PoolStringArray) var inclusive_filter = PoolStringArray();
 
@@ -26,6 +25,12 @@ func get_item_uid():
 #==========================================================================
 # Public
 #==========================================================================
+
+func get_backend_type():
+	return _backend_type;
+	
+func get_stack_size():
+	return _stack_size;
 
 # Returns true if there's a valid item in this slot
 func has_valid_item():
@@ -66,12 +71,12 @@ func transfer(from_backend, item_uid, transfer_data):
 		
 	return true;
 
-func validate_transfer(amount, item_uid, transfer_data):
+func validate_transfer(amount, item_uid, _transfer_data):
 	if(amount == 1 && _item_uid == item_uid):
 		return true;
 	return false;
 
-func handle_transfer(amount, transfer_data):
+func handle_transfer(_amount, _transfer_data):
 	_item_uid = "";
 	emit_signal("item_changed", "");
 

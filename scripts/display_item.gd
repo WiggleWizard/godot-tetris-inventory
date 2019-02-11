@@ -26,10 +26,3 @@ func _ready():
 		
 	if(_max_stack_size == 1):
 		$Label.set_visible(false);
-		
-	var item = ItemDatabase.get_item(_item_uid);
-	#var display_data = item.fetch_inventory_display_data();
-		
-	#$Sprite.set_texture(display_data["texture"]);
-	#$Sprite.region_enabled = true;
-	#$Sprite.set_region_rect(Rect2(display_data["clip_pixel_offset"], display_data["clip_pixel_position"]));

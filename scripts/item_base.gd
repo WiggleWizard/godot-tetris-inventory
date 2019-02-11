@@ -44,6 +44,24 @@ func set_size(new_size):
 	
 	return true;
 	
+func get_texture():
+	return _texture;
+	
+func set_texture(new_texture):
+	_texture = new_texture;
+
+func get_clip_pixel_offset():
+	return _clip_pixel_offset;
+	
+func set_clip_pixel_offset(new_clip_pixel_offset):
+	_clip_pixel_offset = new_clip_pixel_offset;
+	
+func get_clip_pixel_size():
+	return _clip_pixel_size;
+	
+func set_clip_pixel_size(new_clip_pixel_size):
+	_clip_pixel_size = new_clip_pixel_size;
+	
 func fetch_inventory_display_data():
 	return {
 		"texture":           _texture,

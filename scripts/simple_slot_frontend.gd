@@ -11,12 +11,8 @@ export(PackedScene) var display_scene = preload("res://addons/tetris-inventory/s
 export(Vector2) var drag_slot_size    = Vector2(64, 64);
 
 var backend             = null setget backend_set;
-var remove_from_source  = true;
 var allow_drop_swapping = true;
 var inclusive_filter    = PoolStringArray();
-
-signal item_dropped;
-signal item_removed;
 
 var _backend = null;
 
@@ -44,11 +40,11 @@ func get_backend():
 
 # Public callback for when drag hovering over the drop zone. Allow is true only if
 # the zone will accept the hovering item.
-func drag_hover(allow, data):
+func drag_hover(_allow, _data):
 	pass;
 	
 # Public callback for when an item has been dropped from an inventory.
-func dropped_item_from_inventory(item_uid, stack_size = 1):
+func dropped_item_from_inventory(_item_uid, _stack_size = 1):
 	pass;	
 	
 
@@ -86,7 +82,6 @@ func _ready():
 	
 		if(!backend):
 			_backend = SimpleSlotBackend.new();
-			_backend.remove_from_source  = remove_from_source;
 			_backend.allow_drop_swapping = allow_drop_swapping;
 			_backend.inclusive_filter    = inclusive_filter;
 		else:
@@ -94,7 +89,7 @@ func _ready():
 
 		_backend.connect("item_changed", self, "item_changed");
 
-func _process(delta):
+func _process(_delta):
 	var viewport = get_viewport();
 	if(!viewport.gui_is_dragging()):
 		if(_dropped_internally == true):
@@ -154,7 +149,7 @@ func mouse_exited():
 # Drag Drop
 #==========================================================================	
 
-func get_drag_data_fw(position, from_control):
+func get_drag_data_fw(position, _from_control):
 	# Don't allow the user to drag when nothing in here
 	if(!_backend.has_valid_item()):
 		return null;
@@ -180,7 +175,7 @@ func get_drag_data_fw(position, from_control):
 	base_drag_data["frontend"] = self;
 	return base_drag_data;
 
-func can_drop_data_fw(position, data, from_control):
+func can_drop_data_fw(_position, data, _from_control):
 	_move_indicator.set_visible(true);
 
 	var is_item_allowed = _backend.is_item_allowed(data["item_uid"]);
@@ -191,7 +186,7 @@ func can_drop_data_fw(position, data, from_control):
 
 	return true;
 	
-func drop_data_fw(position, data, from_control):
+func drop_data_fw(_position, data, _from_control):
 	_dropped_internally = true;
 	
 	# Request a transfer from the backend
@@ -208,7 +203,7 @@ func drop_data_fw(position, data, from_control):
 	_move_indicator.set_visible(false);
 		
 # Curtesy call from controls that have had the item from this Node dropped into.
-func drop_fw(from_control):
+func drop_fw(_from_control):
 	_drop_fw = true;
 
 	_move_indicator.set_visible(false);
@@ -229,8 +224,6 @@ func item_changed(item_uid):
 			child.queue_free();
 			
 	if(item_uid != ""):
-		var item = ItemDatabase.get_item(item_uid);
-		var display_data = item.fetch_inventory_display_data();
 		var new_scene = display_scene.instance();
 		new_scene.set_display_data(item_uid, 1, 1, "simple_slot");
 		_container.add_child(new_scene);

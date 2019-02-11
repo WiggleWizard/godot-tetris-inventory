@@ -6,7 +6,7 @@ class_name InventoryFrontend
 export(bool) var enable_guides = false;
 export(Color) var guide_color = Color(1, 1, 1, 0.1);
 export(int) var slot_size = 30;
-export(NodePath) var inventory_backend = NodePath("./Inventory");
+export(NodePath) var inventory_backend = null;
 export(Color) var valid_move_color = Color(0, 1, 0, 0.5);
 export(Color) var stack_move_color = Color(1, 1, 0, 0.5);
 export(Color) var invalid_move_color = Color(1, 0, 0, 0.5);
@@ -150,7 +150,7 @@ func _ready():
 		_backend.connect("stack_removed",      self, "stack_removed");
 		
 
-func _process(delta):
+func _process(_delta):
 	if(_process_drop):
 		var viewport = get_viewport();
 		if(!viewport.gui_is_dragging()):
@@ -337,7 +337,7 @@ func get_drag_data(position):
 	return null;
 	
 # Called while user is dragging the Node over the inventory
-func can_drop_data(position, data):
+func can_drop_data(_position, _data):
 	#var mouse_curr_slot = Vector2(floor(position.x / slot_size), floor(position.y / slot_size));
 		
 	# Since we don't need to run this code every time the mouse moves, we can do some
@@ -420,7 +420,7 @@ func drop_data(position, data):
 	_move_indicator.set_visible(false);
 	
 # Curtesy call from controls that have had the item from this Node dropped into.	
-func drop_fw(from_control):
+func drop_fw(_from_control):
 	_drop_fw = true;
 
 	var viewport = get_viewport();
@@ -434,13 +434,13 @@ func gutter_drop():
 	if(_drag_data && _drag_data["mapped_node"]):
 		_drag_data["mapped_node"].modulate.a = 1;
 	
-func get_drag_data_fw(position, from_control):
+func get_drag_data_fw(position, _from_control):
 	return get_drag_data(position);
 
-func can_drop_data_fw(position, data, from_control):
+func can_drop_data_fw(position, data, _from_control):
 	return can_drop_data(position, data);
 	
-func drop_data_fw(position, data, from_control):
+func drop_data_fw(position, data, _from_control):
 	return drop_data(position, data);
 	
 	

@@ -122,6 +122,9 @@ class InventoryItem:
 # Public
 #==========================================================================
 
+func get_backend_type():
+	return _backend_type;
+
 func get_inventory_size():
 	return inventory_size;
 
@@ -446,7 +449,7 @@ func transfer(from_backend, to_slot, amount, item_uid, transfer_data):
 					var stack_id = get_id_at_slot(to_slot);
 					add_to_stack(stack_id, amount);
 
-func validate_transfer(amount, item_uid, transfer_data):
+func validate_transfer(amount, _item_uid, transfer_data):
 	if(!transfer_data.has("stack_id")):
 		return false;
 
