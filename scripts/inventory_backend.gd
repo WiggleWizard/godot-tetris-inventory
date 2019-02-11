@@ -288,6 +288,11 @@ func move_stack(stack_id, to_slot, amount = -1):
 			emit_signal("stack_moved", _inventory[stack_id]);
 			return result;
 
+	# Moved out of bounds (item boundry breaches inventory bounds)
+	if(!would_be_in_bounds(item_uid, to_slot)):
+		emit_signal("stack_moved", _inventory[stack_id]);
+		return result;
+
 	# If we hit nothing, then we are free to move the amount into the slot
 	var sweep_result = sweep(item_uid, to_slot);
 	if(sweep_result.size() == 0):
