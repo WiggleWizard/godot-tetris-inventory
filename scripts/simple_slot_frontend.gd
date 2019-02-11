@@ -172,6 +172,7 @@ func get_drag_data_fw(position, _from_control):
 	# Populate the drag data
 	var base_drag_data = _backend.get_base_drag_data();
 	base_drag_data["frontend"] = self;
+	base_drag_data["mouse_down_offset"] = Vector2(0, 0);
 	return base_drag_data;
 
 func can_drop_data_fw(_position, data, _from_control):
