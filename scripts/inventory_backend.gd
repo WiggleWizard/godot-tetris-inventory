@@ -4,7 +4,7 @@
 # Glossary/Notes:
 #     - A Stack's Slot is the Stack's top left placement.
 ##
-
+tool
 extends Node
 
 class_name InventoryBackend
@@ -16,6 +16,7 @@ var _backend_type = "Inventory";
 
 var _inventory = [];
 
+signal inventory_size_changed;
 signal item_added;
 signal stack_size_changed;
 signal stack_moved;
@@ -132,8 +133,9 @@ func get_inventory_size():
 # inventory if you make it smaller.
 func set_inventory_size(new_size):
 	inventory_size = new_size;
-	
 	# TODO: Truncate inventory
+
+	emit_signal("inventory_size_changed", new_size);
 	
 # Adds an item to the player's inventory at a specific slot. If all items were added successfully to the slot
 # then this function returns 0. Any value above 0 is how many items are left over from a stack merge.
