@@ -8,6 +8,7 @@ export(Color) var valid_color         = Color(0, 1, 0, 0.5);
 export(Color) var invalid_color       = Color(1, 0, 0, 0.5);
 export(PackedScene) var display_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
 
+export(NodePath) var linked_inventory setget set_linked_inventory;
 export(int) var drag_slot_size = 64;
 
 var backend             = null setget backend_set;
@@ -15,6 +16,8 @@ var allow_drop_swapping = true;
 var inclusive_filter    = PoolStringArray();
 
 var _backend = null;
+
+var _linked_inventory = null;
 
 # A Control node that sinks all mouse events so the developer decorate the zone
 # however.
@@ -32,6 +35,21 @@ var _drop_fw            = false;
 
 func get_backend():
 	return _backend;
+
+func set_linked_inventory(node_path):
+	# Disconnect from previously assigned inventory
+	if(_linked_inventory):
+		_linked_inventory.disconnect("slot_size_changed", self, "linked_inventory_slot_size_changed");
+
+	linked_inventory = node_path;
+
+	if(linked_inventory && has_node(linked_inventory)):
+		_linked_inventory = get_node(node_path);
+		if(_linked_inventory):
+			drag_slot_size = _linked_inventory.slot_size;
+
+			if(!_linked_inventory.is_connected("slot_size_changed", self, "linked_inventory_slot_size_changed")):
+				_linked_inventory.connect("slot_size_changed", self, "linked_inventory_slot_size_changed");
 
 
 #==========================================================================
@@ -56,6 +74,8 @@ func _init():
 	property_list_changed_notify();
 
 func _ready():
+	set_linked_inventory(linked_inventory);
+	
 	if(Engine.is_editor_hint()):
 		set_process(false);
 
@@ -245,6 +265,9 @@ func _get_property_list():
 		});
 		
 	return prop_list;
+
+func linked_inventory_slot_size_changed(new_size):
+	drag_slot_size = new_size;
 
 
 #==========================================================================

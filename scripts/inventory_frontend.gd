@@ -118,8 +118,11 @@ func set_lock_rect_ratio(lock_rect_ratio_on):
 	property_list_changed_notify();
 	update();
 
+	emit_signal("slot_size_changed", slot_size);
+
 func set_slot_size(new_slot_size):
 	slot_size = new_slot_size;
+	update();
 	emit_signal("slot_size_changed", slot_size);
 
 	
@@ -525,7 +528,7 @@ func _draw():
 			
 			var inventory_width  = _backend.get_inventory_size().x;
 			var inventory_height = _backend.get_inventory_size().y;
-			slot_size = min(local_rect.size.x / inventory_width, local_rect.size.y / inventory_height);
+			set_slot_size(min(local_rect.size.x / inventory_width, local_rect.size.y / inventory_height));
 			
 		var inventory_size = _backend.get_inventory_size();
 		for i in range(inventory_size.x):
