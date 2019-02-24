@@ -7,7 +7,8 @@ class_name SimpleSlot
 export(Color) var valid_color         = Color(0, 1, 0, 0.5);
 export(Color) var invalid_color       = Color(1, 0, 0, 0.5);
 export(PackedScene) var display_scene = preload("res://addons/tetris-inventory/scenes/default_display_item.tscn");
-export(Vector2) var drag_slot_size    = Vector2(64, 64);
+
+export(int) var drag_slot_size = 64;
 
 var backend             = null setget backend_set;
 var allow_drop_swapping = true;
@@ -44,7 +45,7 @@ func drag_hover(_allow, _data):
 	
 # Public callback for when an item has been dropped from an inventory.
 func dropped_item_from_inventory(_item_uid, _stack_size = 1):
-	pass;	
+	pass;
 	
 
 #==========================================================================
@@ -105,37 +106,6 @@ func _process(_delta):
 		
 		set_process(false);
 		
-func _get_property_list():
-	if(!backend):
-		return [
-			{
-				"name": "backend",
-				"type": TYPE_NODE_PATH
-			},
-			{
-				"name": "remove_from_source",
-				"type": TYPE_BOOL,
-				"usage": PROPERTY_USAGE_DEFAULT
-			},
-			{
-				"name": "allow_drop_swapping",
-				"type": TYPE_BOOL,
-				"usage": PROPERTY_USAGE_DEFAULT
-			},
-			{
-				"name": "inclusive_filter",
-				"type": TYPE_STRING_ARRAY,
-				"usage": PROPERTY_USAGE_DEFAULT
-			},
-		];
-	else:
-		return [
-			{
-				"name": "backend",
-				"type": TYPE_NODE_PATH
-			}
-		];
-		
 func backend_set(new_backend):
 	backend = new_backend;
 	property_list_changed_notify();
@@ -164,21 +134,21 @@ func get_drag_data_fw(position, _from_control):
 	set_drag_preview(outer);
 	
 	outer.add_child(inner);
-	outer.set_size(Vector2(size.x * drag_slot_size.x, size.y * drag_slot_size.y));
-	inner.set_position(-position);
+	outer.set_size(Vector2(size.x * drag_slot_size, size.y * drag_slot_size));
+	inner.set_position(-(inner.get_rect().size / 2));
 	
 	_container.set_visible(false);
 
-	# Populate the drag data
+	# Populate the drag data 
 	var base_drag_data = _backend.get_base_drag_data();
-	base_drag_data["frontend"] = self;
-	base_drag_data["mouse_down_offset"] = Vector2(0, 0);
+	base_drag_data.frontend = self;
+	base_drag_data.mouse_down_offset = inner.get_rect().size / 2;
 	return base_drag_data;
 
 func can_drop_data_fw(_position, data, _from_control):
 	_move_indicator.set_visible(true);
 
-	var is_item_allowed = _backend.is_item_allowed(data["item_uid"]);
+	var is_item_allowed = _backend.is_item_allowed(data.item_uid);
 	if(is_item_allowed):
 		_move_indicator.color = valid_color;
 	else:
@@ -191,12 +161,11 @@ func drop_data_fw(_position, data, _from_control):
 	
 	# Request a transfer from the backend
 	var transfer_data = {}
-	if(data.has("stack_id")):
-		transfer_data["stack_id"] = data["stack_id"];
-	_backend.transfer(data["backend"], data["item_uid"], transfer_data);
+	transfer_data["stack_id"] = data.stack_id;
+	_backend.transfer(data.backend, data.item_uid, transfer_data);
 	
 	# Notify the frontend
-	var frontend = data["frontend"];
+	var frontend = data.frontend;
 	if(frontend && frontend.has_method("drop_fw")):
 		frontend.drop_fw(self);
 
@@ -237,10 +206,45 @@ func _is_drop_data_valid(data):
 	if(!data && (!data.has("source") || !data.has("source_node") || !data.has("item_uid"))):
 		return false;
 		
-	if(data["source_node"] == null):
+	if(data.source_node == null):
 		return false;
 		
 	return true;
+
+
+#==========================================================================
+# Tool
+#==========================================================================
+
+func _get_property_list():
+	var prop_list = [];
+	if(!backend):
+		prop_list.append({
+			"name": "backend",
+			"type": TYPE_NODE_PATH
+		});
+		prop_list.append({
+			"name": "remove_from_source",
+			"type": TYPE_BOOL,
+			"usage": PROPERTY_USAGE_DEFAULT
+		});
+		prop_list.append({
+			"name": "allow_drop_swapping",
+			"type": TYPE_BOOL,
+			"usage": PROPERTY_USAGE_DEFAULT
+		});
+		prop_list.append({
+			"name": "inclusive_filter",
+			"type": TYPE_STRING_ARRAY,
+			"usage": PROPERTY_USAGE_DEFAULT
+		});
+	else:
+		prop_list.append({
+			"name": "backend",
+			"type": TYPE_NODE_PATH
+		});
+		
+	return prop_list;
 
 
 #==========================================================================

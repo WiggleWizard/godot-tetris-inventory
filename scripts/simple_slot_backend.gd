@@ -5,6 +5,8 @@ class_name SimpleSlotBackend
 export(bool) var allow_drop_swapping         = true;
 export(PoolStringArray) var inclusive_filter = PoolStringArray();
 
+const DragDropResource = preload("res/drag_drop.gd");
+
 var _backend_type = "SimpleSlot";
 
 var _item_uid = "";
@@ -84,9 +86,10 @@ func get_base_drag_data():
 	if(!has_valid_item()):
 		return null;
 
-	return {
-		"source":     "simple_slot",
-		"item_uid":   _item_uid,
-		"stack_size": 1,
-		"backend":    self
-	};
+	var drag_drop_res = DragDropResource.new();
+	drag_drop_res.source     = "simple_slot";
+	drag_drop_res.item_uid   = _item_uid;
+	drag_drop_res.stack_size = 1;
+	drag_drop_res.backend    = self;
+
+	return drag_drop_res;

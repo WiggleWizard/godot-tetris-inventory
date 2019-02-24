@@ -18,7 +18,7 @@ export(float) var tooltip_time = 0.5;
 export(bool) var enable_guides   = false setget set_enable_guides;
 export(Color) var guide_color    = Color(1, 1, 1, 0.1) setget set_guide_color;
 export(bool) var lock_rect_ratio = true setget set_lock_rect_ratio;
-var slot_size = 64.0;
+var slot_size = 64.0 setget set_slot_size;
 
 
 var _backend = null;
@@ -42,6 +42,8 @@ var _tooltip_timer = Timer.new();
 var _tooltip_node;
 
 var _prev_size = Vector2(0, 0);
+
+signal slot_size_changed;
 
 
 #==========================================================================
@@ -116,7 +118,11 @@ func set_lock_rect_ratio(lock_rect_ratio_on):
 	property_list_changed_notify();
 	update();
 
+func set_slot_size(new_slot_size):
+	slot_size = new_slot_size;
+	emit_signal("slot_size_changed", slot_size);
 
+	
 #==========================================================================
 # Inventory Backend Events
 #==========================================================================	
@@ -351,23 +357,22 @@ func get_drag_data(position):
 			
 			# Populate the drag data
 			var base_drag_data = _backend.get_base_drag_data(drag_start_slot, drag_modifier);
-			base_drag_data["frontend"]          = self;
-			base_drag_data["mapped_node"]       = mapped_node;
-			base_drag_data["mouse_down_offset"] = position - mapped_node.get_rect().position;
-			_drag_data = base_drag_data;
+			base_drag_data.frontend          = self;
+			base_drag_data.mapped_node       = mapped_node;
+			base_drag_data.mouse_down_offset = position - mapped_node.get_rect().position;
 			
 			# If we are dragging the whole stack then hide it
-			if(_drag_data["stack_size"] == stack.get_stack_size()):
+			if(base_drag_data.stack_size == stack.get_stack_size()):
 				mapped_node.modulate.a = drag_alpha;
 			elif(get_mapped_node(stack_id).has_method("stack_size_changed")):
-				get_mapped_node(stack_id).stack_size_changed(stack.get_stack_size() - _drag_data["stack_size"]);
-			
+				get_mapped_node(stack_id).stack_size_changed(stack.get_stack_size() - base_drag_data.stack_size);
+				
 			# Create an outer for the preview so we can have an offset.
 			var inner = inventory_component_scene.instance();
 			
 			# Callbacks for display node
 			if(inner.has_method("set_display_data")):
-				inner.set_display_data(stack.get_item_uid(), base_drag_data["stack_size"], item.get_max_stack_size(), "dragging");
+				inner.set_display_data(stack.get_item_uid(), base_drag_data.stack_size, item.get_max_stack_size(), "dragging");
 			
 			# Add drag preview
 			var outer = Control.new();
@@ -375,8 +380,10 @@ func get_drag_data(position):
 			outer.add_child(inner);
 			outer.set_size(Vector2(inventory_size.x * slot_size, inventory_size.y * slot_size));
 			inner.set_position(mapped_node.get_position() - position);
+
+			_drag_data = base_drag_data;
 			
-			return _drag_data;
+			return base_drag_data;
 	
 	return null;
 	
@@ -385,65 +392,64 @@ func can_drop_data(_position, _data):
 	
 # Called while user is dragging the Node over the inventory
 func drag_hover(position, slot, data):
-	if(data["source"] == "inventory"):
-		var frontend       = data["frontend"];
-		var item           = ItemDatabase.get_item(data["item_uid"]);
-		var item_slot_size = item.get_size();
-		var offset_slot    = ((position - data["mouse_down_offset"]) / slot_size).round();
+	var item           = ItemDatabase.get_item(data.item_uid);
+	var item_slot_size = item.get_size();
+	var offset_slot    = ((position - data.mouse_down_offset) / slot_size).round();
+	
+	var frontend = data.frontend;
 
-		# Draw move indicator in the right place
-		_move_indicator.set_visible(true);
-		_move_indicator.set_position(Vector2(offset_slot.x * slot_size, offset_slot.y * slot_size));
-		_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
-		
-		var can_item_fit = false;
-		# Inventory item being dragged around the same inventory it originated from
-		if(frontend == self):
-			can_item_fit = _backend.can_stack_fit(data["stack_id"], offset_slot);
-		# Different inventory origin
-		elif(data.has("source") && data["source"] == "inventory"):
-			can_item_fit = _backend.can_item_fit(data["item_uid"], offset_slot);
+	# Draw move indicator in the right place
+	_move_indicator.set_visible(true);
+	_move_indicator.set_position(Vector2(offset_slot.x * slot_size, offset_slot.y * slot_size));
+	_move_indicator.set_size(Vector2(item_slot_size.x * slot_size, item_slot_size.y * slot_size));
+	
+	var can_item_fit = false;
+	# Inventory item being dragged around the same inventory it originated from
+	if(frontend == self):
+		can_item_fit = _backend.can_stack_fit(data.stack_id, offset_slot);
+	# Different origin
+	else:
+		can_item_fit = _backend.can_item_fit(data.item_uid, offset_slot);
 
-		# Check if we are hovering over an inventory entry that has the same UID
-		var can_stack  = false;
-		var stack_id   = _backend.get_id_at_slot(slot);
-		var stack_item = _backend.get_stack_from_id(stack_id);
-		if(stack_item != null):
-			# If hovering over the same item that was picked up
-			if(stack_id == data["stack_id"]):
-				# If we aren't dragging the entire stack then allow stack
-				if(stack_item.get_stack_size() != data["stack_size"]):
-					can_stack = true;
-			elif(stack_item.get_item_uid() == data["item_uid"] && !stack_item.at_max_stack()):
+	# Check if we are hovering over an inventory entry that has the same UID
+	var can_stack  = false;
+	var stack_id   = _backend.get_id_at_slot(slot);
+	var stack_item = _backend.get_stack_from_id(stack_id);
+	if(stack_item != null):
+		# If hovering over the same item that was picked up
+		if(stack_id == data.stack_id):
+			# If we aren't dragging the entire stack then allow stack
+			if(stack_item.get_stack_size() != data.stack_size):
 				can_stack = true;
-			
-		# Set move indicator to different colors depending on whether item can fit
-		# or not.
-		# TODO: Make this more customizable.
-		if(can_stack == true):
-			_move_indicator.set_frame_color(stack_move_color);
-		elif(can_item_fit == true):
-			_move_indicator.set_frame_color(valid_move_color);
-		else:
-			_move_indicator.set_frame_color(invalid_move_color);
+		elif(stack_item.get_item_uid() == data.item_uid && !stack_item.at_max_stack()):
+			can_stack = true;
+		
+	# Set move indicator to different colors depending on whether item can fit
+	# or not.
+	# TODO: Make this more customizable.
+	if(can_stack == true):
+		_move_indicator.set_frame_color(stack_move_color);
+	elif(can_item_fit == true):
+		_move_indicator.set_frame_color(valid_move_color);
+	else:
+		_move_indicator.set_frame_color(invalid_move_color);
 
 func drop_data(position, data):
 	if(!_is_drop_data_valid(data)):
 		return;
 
-	var slot = ((position - data["mouse_down_offset"]) / slot_size).round();
+	var slot = ((position - data.mouse_down_offset) / slot_size).round();
 
 	_tooltip_timer.start();
 	
-	var from_frontend = data["frontend"];
-	var from_backend  = data["backend"];
+	var from_frontend = data.frontend;
+	var from_backend  = data.backend;
 	
 	# Compile appropriate transfer data
 	var transfer_data = {};
-	if(data.has("stack_id")):
-		transfer_data["stack_id"] = data["stack_id"];
+	transfer_data["stack_id"] = data.stack_id;
 
-	_backend.transfer(from_backend, slot, data["stack_size"], data["item_uid"], transfer_data);
+	_backend.transfer(from_backend, slot, data.stack_size, data.item_uid, transfer_data);
 	
 	# If the source of the drag was internal then set flag
 	if(from_frontend == self):
@@ -460,14 +466,14 @@ func drop_fw(_from_control):
 
 	var viewport = get_viewport();
 	var drag_data = viewport.gui_get_drag_data();
-	if(drag_data["mapped_node"]):
-		drag_data["mapped_node"].modulate.a = 1;
+	if(drag_data.mapped_node):
+		drag_data.mapped_node.modulate.a = 1;
 	
 # Occurs when an item is dropped in no man's land.
 func gutter_drop():
 	_move_indicator.set_visible(false);
-	if(_drag_data && _drag_data["mapped_node"]):
-		_drag_data["mapped_node"].modulate.a = 1;
+	if(_drag_data && _drag_data.mapped_node):
+		_drag_data.mapped_node.modulate.a = 1;
 	
 func get_drag_data_fw(position, _from_control):
 	return get_drag_data(position);
@@ -484,9 +490,7 @@ func drop_data_fw(position, data, _from_control):
 #==========================================================================
 
 func _is_drop_data_valid(data):
-	if(!data && (!data.has("source") || !data.has("frontend"))):
-		return false;
-	if(data["frontend"] == null):
+	if(data.frontend == null):
 		return false;
 		
 	return true;

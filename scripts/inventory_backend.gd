@@ -12,8 +12,9 @@ class_name InventoryBackend
 export(Vector2) var inventory_size = Vector2(1, 1) setget set_inventory_size, get_inventory_size;
 export(bool) var auto_stack_on_append = true;
 
-var _backend_type = "Inventory";
+const DragDropResource = preload("res/drag_drop.gd");
 
+var _backend_type = "Inventory";
 var _inventory = [];
 
 signal inventory_size_changed;
@@ -608,15 +609,16 @@ func get_base_drag_data(slot, drag_modifier = DragModifier.DRAG_ALL):
 	var stack_size = stack.get_stack_size();
 	if(drag_modifier == DragModifier.DRAG_SPLIT_HALF):
 		stack_size = ceil(stack_size / 2);
+		
+	var drag_drop_res = DragDropResource.new();
+	drag_drop_res.source     = "inventory";
+	drag_drop_res.stack_id   = stack_id;
+	drag_drop_res.item_uid   = stack.get_item_uid();
+	drag_drop_res.slot       = slot;
+	drag_drop_res.stack_size = stack_size;
+	drag_drop_res.backend    = self;
 	
-	return {
-		"source":     "inventory",
-		"stack_id":   stack_id,
-		"item_uid":   stack.get_item_uid(),
-		"slot":       slot,
-		"stack_size": stack_size,
-		"backend":    self
-	};
+	return drag_drop_res;
 
 
 #==========================================================================
